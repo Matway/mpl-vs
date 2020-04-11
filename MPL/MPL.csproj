@@ -68,7 +68,6 @@
     <Compile Include="Classification\ClassifierProvider.cs" />
     <Compile Include="Commands\BackspaceCommandHandler.cs" />
     <Compile Include="Commands\BraceCompletionCommandHandler.cs" />
-    <Compile Include="Commands\CaretHandler.cs" />
     <Compile Include="Commands\FormatDocumentHandler.cs" />
     <Compile Include="Commands\CommentSelectionCommandHandler.cs" />
     <Compile Include="Commands\DocumentListener.cs" />

@@ -26,7 +26,6 @@ namespace MPL.Commands {
       textView.Properties.GetOrCreateSingletonProperty(() => new FormatDocumentHandler(textViewAdapter, textView));
       textView.Properties.GetOrCreateSingletonProperty(() => new GoToBraceCommandHandler(textViewAdapter, textView));
       textView.Properties.GetOrCreateSingletonProperty(() => new ReturnCommandHandler(textViewAdapter, textView));
-      textView.Properties.GetOrCreateSingletonProperty(() => new CaretHandler(textViewAdapter, textView));
       textView.Properties.GetOrCreateSingletonProperty(() => new BraceCompletionCommandHandler(textViewAdapter, textView));
       textView.Properties.GetOrCreateSingletonProperty(() => new AngularQuotesCommandHandler(textViewAdapter, textView));
       textView.Properties.GetOrCreateSingletonProperty(() => new BackspaceCommandHandler(textViewAdapter, textView));
