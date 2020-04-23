@@ -36,16 +36,19 @@ namespace MPL.Commands {
     public int Exec(ref Guid pguidCmdGroup, uint nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut) {
       ThreadHelper.ThrowIfNotOnUIThread();
 
-      if (!IsBraceCompletionNeeded(ref pguidCmdGroup, nCmdID))
+      if (!IsBraceCompletionNeeded(ref pguidCmdGroup, nCmdID)) {
         goto noCompletionNeeded;
+      }
 
       var typedChar = (char)(ushort)Marshal.GetObjectForNativeVariant(pvaIn);
 
-      if (IsOpeningBrace(typedChar))
+      if (IsOpeningBrace(typedChar)) {
         return HandleOpeningBrace(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut, typedChar);
+      }
 
-      if (IsClosingBrace(typedChar) && IsEqualToNextCharacter(typedChar))
+      if (IsClosingBrace(typedChar) && IsEqualToNextCharacter(typedChar)) {
         return HandleClosingBrace();
+      }
 
     noCompletionNeeded:
       return _NextCommandTarget.Exec(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut);
