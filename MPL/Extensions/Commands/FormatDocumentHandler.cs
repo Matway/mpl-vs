@@ -7,7 +7,7 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Editor.OptionsExtensionMethods;
 using Microsoft.VisualStudio.TextManager.Interop;
-using MPL.AST;
+using MPL.ParseTree;
 
 namespace MPL.Commands {
   internal class FormatDocumentHandler : VSCommandTarget<VSConstants.VSStd2KCmdID> {
@@ -20,38 +20,36 @@ namespace MPL.Commands {
     private string rawSource;
     private int selectionBegin, selectionEnd;
     private bool valid;
-    private TreeBuilder.Node lastToken;
+    private Builder.Node lastToken;
     private ITextEdit edit;
-    private Stack<Stack<TreeBuilder.Node>> bracketsStack;
-    private Stack<TreeBuilder.Node> currentLevelBrackets;
+    private Stack<Stack<Builder.Node>> bracketsStack;
+    private Stack<Builder.Node> currentLevelBrackets;
     private bool wasPoped;
 
     public FormatDocumentHandler(IVsTextView vsTextView, IWpfTextView textView) : base(vsTextView, textView) { }
 
-    protected override IEnumerable<VSConstants.VSStd2KCmdID> SupportedCommands {
-      get {
-        yield return VSConstants.VSStd2KCmdID.FORMATDOCUMENT;
-        yield return VSConstants.VSStd2KCmdID.FORMATSELECTION;
-      }
+    protected override IEnumerable<VSConstants.VSStd2KCmdID> SupportedCommands() {
+      yield return VSConstants.VSStd2KCmdID.FORMATDOCUMENT;
+      yield return VSConstants.VSStd2KCmdID.FORMATSELECTION;
     }
 
     protected override bool Execute(VSConstants.VSStd2KCmdID command, uint options, IntPtr pvaIn, IntPtr pvaOut) {
       ThreadHelper.ThrowIfNotOnUIThread();
-      lastToken = new TreeBuilder.Node { line = 0 };
-      currentLevelBrackets = new Stack<TreeBuilder.Node>();
-      bracketsStack = new Stack<Stack<TreeBuilder.Node>>();
+      lastToken = new Builder.Node { line = 0 };
+      currentLevelBrackets = new Stack<Builder.Node>();
+      bracketsStack = new Stack<Stack<Builder.Node>>();
       edit = TextView.TextBuffer.CreateEdit();
       wasPoped = false;
       switch (MplPackage.Options.LineEndings) {
-        case Options.LineEnding.LINUX:
+        case Options.LineEnding.Unix:
         leaveAsIs = false;
         lineEnding = "\n";
         break;
-        case Options.LineEnding.WINDOWS:
+        case Options.LineEnding.Windows:
         leaveAsIs = false;
         lineEnding = "\r\n";
         break;
-        case Options.LineEnding.AS_IS:
+        case Options.LineEnding.Document:
         leaveAsIs = true;
         break;
       }
@@ -93,7 +91,7 @@ namespace MPL.Commands {
       return true;
     }
 
-    private void TraverseEdit(TreeBuilder.Node node) {
+    private void TraverseEdit(Builder.Node node) {
       if (node.children == null) {
         AddDelimeter(node);
         return;
@@ -128,7 +126,7 @@ namespace MPL.Commands {
       return sum;
     }
 
-    private void AddIndentation(TreeBuilder.Node currentToken) {
+    private void AddIndentation(Builder.Node currentToken) {
       if (lastToken.end <= selectionEnd && currentToken.begin >= selectionBegin && (lastToken.name == "CRLF" || lastToken.name == "LF" || isFirstToken)) {
         var beginLine = TextView.TextBuffer.CurrentSnapshot.GetLineFromPosition(selectionBegin);
         var changeSpanBegin = Math.Max(lastToken.end, beginLine.Start.Position);
@@ -142,7 +140,7 @@ namespace MPL.Commands {
       }
     }
 
-    private void AddDelimeter(TreeBuilder.Node currentToken) {
+    private void AddDelimeter(Builder.Node currentToken) {
       switch (currentToken.name) {
         case "EOF":
         if (lastToken.name != "CRLF" && lastToken.name != "LF") {
@@ -212,17 +210,17 @@ namespace MPL.Commands {
 
       if (currentToken.name == "'['" || currentToken.name == "'{'" || currentToken.name == "'('") {
         if (bracketsStack.Count == 0 && currentLevelBrackets.Count == 0) {
-          bracketsStack.Push(new Stack<TreeBuilder.Node>());
+          bracketsStack.Push(new Stack<Builder.Node>());
           bracketsStack.Peek().Push(currentToken);
         } else if (bracketsStack.Count != 0 && bracketsStack.Peek().Peek().line == currentToken.line) {
           bracketsStack.Peek().Push(currentToken);
         } else if (currentLevelBrackets.Count != 0) {
-          bracketsStack.Push(new Stack<TreeBuilder.Node>(currentLevelBrackets));
+          bracketsStack.Push(new Stack<Builder.Node>(currentLevelBrackets));
           currentLevelBrackets.Clear();
           bracketsStack.Peek().Push(currentToken);
           wasPoped = true;
         } else {
-          bracketsStack.Push(new Stack<TreeBuilder.Node>());
+          bracketsStack.Push(new Stack<Builder.Node>());
           bracketsStack.Peek().Push(currentToken);
         }
       }
@@ -241,8 +239,8 @@ namespace MPL.Commands {
 
     private void GetFormattedProgram() {
       isFirstToken = true;
-      AST.AST.Parse(rawSource, out bool parsed);
-      var root = AST.AST.GetASTRoot();
+      ParseTree.Tree.Parse(rawSource, out bool parsed);
+      var root = ParseTree.Tree.Root();
       if (root.name == "Program") {
         TraverseEdit(root);
         valid = true;

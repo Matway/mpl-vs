@@ -14,13 +14,11 @@ namespace MPL.Commands {
       buffer = textView.TextBuffer;
     }
 
-    protected override IEnumerable<VSConstants.VSStd2KCmdID> SupportedCommands {
-      get {
-        yield return VSConstants.VSStd2KCmdID.COMMENTBLOCK;
-        yield return VSConstants.VSStd2KCmdID.COMMENT_BLOCK;
-        yield return VSConstants.VSStd2KCmdID.UNCOMMENT_BLOCK;
-        yield return VSConstants.VSStd2KCmdID.UNCOMMENTBLOCK;
-      }
+    protected override IEnumerable<VSConstants.VSStd2KCmdID> SupportedCommands() {
+      yield return VSConstants.VSStd2KCmdID.COMMENTBLOCK;
+      yield return VSConstants.VSStd2KCmdID.COMMENT_BLOCK;
+      yield return VSConstants.VSStd2KCmdID.UNCOMMENT_BLOCK;
+      yield return VSConstants.VSStd2KCmdID.UNCOMMENTBLOCK;
     }
 
     protected override bool Execute(VSConstants.VSStd2KCmdID command, uint options, IntPtr pvaIn, IntPtr pvaOut) {

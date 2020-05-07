@@ -22,14 +22,15 @@ namespace MPL {
       VsTextView = vsTextView;
       TextView = textView;
       CommandGroupId = typeof(T).GUID;
-      CommandIdSet = new HashSet<uint>(SupportedCommands.Select(x => ConvertFromCommand(x)));
+      CommandIdSet = new HashSet<uint>(SupportedCommands().Select(x => ConvertFromCommand(x)));
 
       _NextCommandTarget = AttachTo(vsTextView, this);
     }
 
     protected virtual bool IsEnabled { get { return true; } }
     protected virtual bool SupportsAutomation { get { return false; } }
-    protected abstract IEnumerable<T> SupportedCommands { get; }
+
+    protected abstract IEnumerable<T> SupportedCommands();
     protected abstract T ConvertFromCommandId(uint id);
     protected abstract uint ConvertFromCommand(T command);
 
@@ -73,8 +74,7 @@ namespace MPL {
     }
 
     static IOleCommandTarget AttachTo(IVsTextView view, IOleCommandTarget command) {
-      IOleCommandTarget next;
-      view.AddCommandFilter(command, out next);
+      view.AddCommandFilter(command, out var next);
       return next;
     }
   }

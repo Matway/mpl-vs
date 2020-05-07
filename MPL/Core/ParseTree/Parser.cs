@@ -714,7 +714,7 @@ namespace MPL {
           isBuiltin = true;
         }
       } else {
-        throwException(end, "MemberName", "It must be MememberName here, but it's empty");
+        throwException(end, "MemberName", "It must be MemberName here, but it's empty");
       }
     }
 

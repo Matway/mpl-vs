@@ -9,7 +9,7 @@ namespace MPL.Commands {
   [Export(typeof(IVsTextViewCreationListener))]
   [ContentType(Constants.MPLContentType)]
   [TextViewRole(PredefinedTextViewRoles.Interactive)]
-  internal sealed class RustDocumentListener : IVsTextViewCreationListener {
+  internal sealed class TextViewCreationListener : IVsTextViewCreationListener {
     [Import]
     IVsEditorAdaptersFactoryService AdapterService { get; set; }
 
@@ -25,7 +25,6 @@ namespace MPL.Commands {
       textView.Properties.GetOrCreateSingletonProperty(() => new CommentSelectionCommandHandler(textViewAdapter, textView));
       textView.Properties.GetOrCreateSingletonProperty(() => new FormatDocumentHandler(textViewAdapter, textView));
       textView.Properties.GetOrCreateSingletonProperty(() => new GoToBraceCommandHandler(textViewAdapter, textView));
-      textView.Properties.GetOrCreateSingletonProperty(() => new ReturnCommandHandler(textViewAdapter, textView));
       textView.Properties.GetOrCreateSingletonProperty(() => new BraceCompletionCommandHandler(textViewAdapter, textView));
       textView.Properties.GetOrCreateSingletonProperty(() => new AngularQuotesCommandHandler(textViewAdapter, textView));
       textView.Properties.GetOrCreateSingletonProperty(() => new BackspaceCommandHandler(textViewAdapter, textView));

@@ -2,8 +2,8 @@
 using System.Linq;
 using System;
 
-namespace MPL.AST {
-  internal class TreeBuilder : MPLParser.EventHandler {
+namespace MPL.ParseTree {
+  internal class Builder : MPLParser.EventHandler {
     public class Node {
       public int begin;
       public int end;
@@ -13,44 +13,45 @@ namespace MPL.AST {
     }
 
     public string source;
-    private readonly Stack<Node> programStack;
+    private readonly Stack<Node> nodes;
     protected MPLParser parser;
-    public Stack<MPLParser.ParseException> errorStack;
-    public List<string> nameList;
-    
-    public TreeBuilder() {
+    public Stack<MPLParser.ParseException> errors;
+    public List<string> names;
+
+    public Builder() {
       parser = new MPLParser();
-      programStack = new Stack<Node>();
-      errorStack = new Stack<MPLParser.ParseException>();
-      nameList = new List<string>();
+      nodes = new Stack<Node>();
+      errors = new Stack<MPLParser.ParseException>();
+      names = new List<string>();
     }
 
     public Node getRoot(string source, out bool parsed) {
-      programStack.Clear();
-      errorStack.Clear();
-      nameList.Clear();
-      this.source = source;
-        programStack.Push(new Node {
-          begin = 0,
-          end = source.Length,
-          line = 0,
-          name = "Program",
-          children = new List<Node>()
-        });
-        parser.initialize(source, this);
-        parser.parse_ProgramWithEOF();
-        parsed = true;
-      if (errorStack.Count > 0) {
-        parsed = false;
-      }
+      nodes.Clear();
+      errors.Clear();
+      names.Clear();
 
-      return programStack.Peek();
+      this.source = source;
+      nodes.Push(new Node {
+        begin = 0,
+        end = source.Length,
+        line = 0,
+        name = "Program",
+        children = new List<Node>()
+      });
+
+      parser.initialize(source, this);
+      parser.parse_ProgramWithEOF();
+
+      parsed = errors.Count == 0;
+
+      return nodes.Peek();
     }
 
+    // TODO: Why the argument is ignored?
     public void reset(string s) {
-      programStack.Clear();
-      errorStack.Clear();
-      programStack.Push(new Node {
+      nodes.Clear();
+      errors.Clear();
+      nodes.Push(new Node {
         begin = 0,
         end = source.Length,
         line = 0,
@@ -60,7 +61,7 @@ namespace MPL.AST {
     }
 
     private void AddChild(Node n) {
-      programStack.Peek().children.Add(n);
+      nodes.Peek().children.Add(n);
     }
 
     public void startNonterminal(string name, int begin, int line) {
@@ -80,8 +81,8 @@ namespace MPL.AST {
         children = new List<Node>()
       };
 
-      if (programStack.Any()) AddChild(node);
-      programStack.Push(node);
+      if (nodes.Any()) AddChild(node);
+      nodes.Push(node);
     }
 
     public void endNonterminal(string name, int end) {
@@ -93,8 +94,8 @@ namespace MPL.AST {
         default: return;
       }
 
-      if (programStack.Count() > 1) programStack.Peek().end = end;
-      programStack.Pop();
+      if (nodes.Count > 1) nodes.Peek().end = end;
+      nodes.Pop();
     }
 
     public void terminal(string name, int begin, int end, int line) {
@@ -107,12 +108,12 @@ namespace MPL.AST {
     }
 
     public void pushError(int p, int l, int c, string t, string m) {
-      errorStack.Push(new MPLParser.ParseException(p, l, c, t, m));
+      errors.Push(new MPLParser.ParseException(p, l, c, t, m));
     }
 
     public void getName(string name) {
-      if (!nameList.Contains(name)) {
-        nameList.Add(name);
+      if (!names.Contains(name)) {
+        names.Add(name);
       }
     }
 
@@ -121,28 +122,23 @@ namespace MPL.AST {
     }
   }
 
-  internal static class AST {
-    private static TreeBuilder treeBuilder;
-    private static TreeBuilder.Node astRoot;
-    public static List<string> nameList;
-
-    static AST() {
-      treeBuilder = new TreeBuilder();
-      astRoot = new TreeBuilder.Node();
-      nameList = new List<string>();
-    }
+  // FIXME: Static class with mutable state.
+  internal static class Tree {
+    private static readonly Builder builder = new Builder();
+    private static Builder.Node root = new Builder.Node();
+    public static List<string> nameList = new List<string>();
 
     public static void Parse (string src, out bool parsed) {
-      astRoot = treeBuilder.getRoot(src, out parsed);
-      nameList = treeBuilder.nameList;
+      root = builder.getRoot(src, out parsed);
+      nameList = builder.names;
     }
 
-    public static TreeBuilder.Node GetASTRoot() {
-      return astRoot;
+    public static Builder.Node Root() {
+      return root;
     }
 
     public static Stack<MPLParser.ParseException> GetErrorStack() {
-      return treeBuilder.errorStack;
+      return builder.errors;
     }
   }
 }

@@ -8,7 +8,7 @@ using Microsoft.VisualStudio.Language.Intellisense;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Operations;
 using Microsoft.VisualStudio.Utilities;
-using MPL.AST;
+using MPL.ParseTree;
 
 namespace MPL.Intellisense {
   internal class CompletionSource : ICompletionSource {
@@ -33,7 +33,7 @@ namespace MPL.Intellisense {
         }
       }
 
-      foreach (string name in AST.AST.nameList) {
+      foreach (string name in ParseTree.Tree.nameList) {
         if (!strList.Contains(name)) {
           _compList.Add(new Completion(name, name, null, null, null));
         }

@@ -65,7 +65,7 @@ namespace MPL.BraceFolding {
     }
 
     private void ReParse() {
-      AST.TreeBuilder.Node root = AST.AST.GetASTRoot();
+      ParseTree.Builder.Node root = ParseTree.Tree.Root();
       ITextSnapshot newSnapshot = buffer.CurrentSnapshot;
       List<Region> newRegions = new List<Region>();
       Stack<char> brackets = new Stack<char>();
@@ -74,7 +74,7 @@ namespace MPL.BraceFolding {
 
       //string text = newSnapshot.GetText();
 
-      void Traverse(AST.TreeBuilder.Node node) {
+      void Traverse(ParseTree.Builder.Node node) {
 
         if (node.name == "'['" || node.name == "'{'" || node.name == "'('") {
           brackets.Push(node.name[1]);

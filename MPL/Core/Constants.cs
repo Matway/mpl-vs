@@ -28,14 +28,14 @@ namespace MPL {
     internal static Color backgroundHighlightColorDark = Color.FromRgb(7, 54, 66); //base02
     internal static Brush backgroundHighlightDarkBrush = new SolidColorBrush(backgroundHighlightColorDark); //base02
     internal static Color MplSecondaryContentColorDark = Color.FromRgb(88, 110, 117); //base01
-    internal static Color MplContentColorDark = Color.FromRgb(131, 148, 150); // base0    
+    internal static Color MplContentColorDark = Color.FromRgb(131, 148, 150); // base0
     internal static Color MplEmphasizedColorDark = Color.FromRgb(147, 161, 161); //base 1
 
     internal static Brush backgroundLightBrush = new SolidColorBrush(Color.FromRgb(253, 246, 227)); //base3
     internal static Color backgroundHighlightColorLight = Color.FromRgb(238, 232, 213); //base2
     internal static Brush backgroundHighlightLightBrush = new SolidColorBrush(backgroundHighlightColorLight); //base2
     internal static Color MplSecondaryContentColorLight = Color.FromRgb(147, 161, 161); //base1
-    internal static Color MplContentColorLight = Color.FromRgb(101, 123, 131); // base00    
+    internal static Color MplContentColorLight = Color.FromRgb(101, 123, 131); // base00
     internal static Color MplEmphasizedColorLight = Color.FromRgb(88, 110, 117); //base 01
 
     internal static readonly List<String> MplBuiltins = new List<String>() {
@@ -83,7 +83,6 @@ namespace MPL {
       "isMoved",
       "importFunction",
       "importVariable",
-      "includeModule",
       "isConst",
       "isCombined",
       "LF",
@@ -120,7 +119,7 @@ namespace MPL {
       "TRUE",
       "uif",
       "ucall",
-      "useModule",
+      "use",
       "virtual",
       "xor"
     };

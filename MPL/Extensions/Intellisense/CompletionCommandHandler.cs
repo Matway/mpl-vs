@@ -14,7 +14,7 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.TextManager.Interop;
 using Microsoft.VisualStudio.Utilities;
-using MPL.AST;
+using MPL.ParseTree;
 
 namespace MPL.Intellisense {
   internal class CompletionCommandHandler : IOleCommandTarget {
@@ -166,11 +166,11 @@ namespace MPL.Intellisense {
     }
 
     private bool IsStringOrComment() {
-      TreeBuilder.Node root = AST.AST.GetASTRoot();
+      Builder.Node root = ParseTree.Tree.Root();
       bool notStringOrComment = true;
       bool notReached = true;
 
-      void Traverse(TreeBuilder.Node node) {
+      void Traverse(Builder.Node node) {
         if (node.children == null) {
           if (notReached && node.begin < _textView.Caret.Position.BufferPosition.Position && node.end >= _textView.Caret.Position.BufferPosition.Position) {
             if (node.name == "Comment" || (node.name == "String" && node.end != _textView.Caret.Position.BufferPosition.Position)) {

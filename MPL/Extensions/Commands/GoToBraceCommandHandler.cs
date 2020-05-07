@@ -30,10 +30,8 @@ namespace MPL.Commands {
       };
     }
 
-    protected override IEnumerable<VSConstants.VSStd2KCmdID> SupportedCommands {
-      get {
-        yield return VSConstants.VSStd2KCmdID.GOTOBRACE;
-      }
+    protected override IEnumerable<VSConstants.VSStd2KCmdID> SupportedCommands() {
+      yield return VSConstants.VSStd2KCmdID.GOTOBRACE;
     }
 
     protected override bool Execute(VSConstants.VSStd2KCmdID command, uint options, IntPtr pvaIn, IntPtr pvaOut) {
@@ -128,12 +126,12 @@ namespace MPL.Commands {
     }
 
     private bool FindCloseChar(SnapshotPoint start, string kind, out SnapshotPoint end) {
-      AST.TreeBuilder.Node root = AST.AST.GetASTRoot();
+      ParseTree.Builder.Node root = ParseTree.Tree.Root();
       int startPos = start.Position;
       int endPos = startPos;
       bool haveFound = false;
 
-      void Traverse(AST.TreeBuilder.Node node) {
+      void Traverse(ParseTree.Builder.Node node) {
         if (node.children == null) {
           return;
         }
@@ -157,12 +155,12 @@ namespace MPL.Commands {
     }
 
     private bool FindOpenChar(SnapshotPoint end, string kind, out SnapshotPoint start) {
-      AST.TreeBuilder.Node root = AST.AST.GetASTRoot();
+      ParseTree.Builder.Node root = ParseTree.Tree.Root();
       int endPos = end.Position;
       int startPos = endPos;
       bool haveFound = false;
 
-      void Traverse(AST.TreeBuilder.Node node) {
+      void Traverse(ParseTree.Builder.Node node) {
         if (node.children == null) {
           return;
         }

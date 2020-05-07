@@ -8,7 +8,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.TextManager.Interop;
-using MPL.AST;
+using MPL.ParseTree;
 
 namespace MPL.Commands {
   internal class GoToDefinitionCommandHandler : VSCommandTarget<VSConstants.VSStd97CmdID> {
@@ -21,10 +21,8 @@ namespace MPL.Commands {
 
     public GoToDefinitionCommandHandler(IVsTextView vsTextView, IWpfTextView textView) : base(vsTextView, textView) { }
 
-    protected override IEnumerable<VSConstants.VSStd97CmdID> SupportedCommands {
-      get {
-        yield return VSConstants.VSStd97CmdID.GotoDefn;
-      }
+    protected override IEnumerable<VSConstants.VSStd97CmdID> SupportedCommands() {
+      yield return VSConstants.VSStd97CmdID.GotoDefn;
     }
 
     protected override bool Execute(VSConstants.VSStd97CmdID command, uint options, IntPtr pvaIn, IntPtr pvaOut) {
@@ -62,12 +60,12 @@ namespace MPL.Commands {
     }
 
     private bool findTheName() {
-      AST.TreeBuilder.Node root = AST.AST.GetASTRoot();
+      ParseTree.Builder.Node root = ParseTree.Tree.Root();
 
       int caretPosition = TextView.Caret.Position.BufferPosition.Position;
       bool foundName = false;
 
-      void Traverse(TreeBuilder.Node node) {
+      void Traverse(Builder.Node node) {
         if (node.children == null) {
           if (node.name == "Name") {
             selectedName = TextView.TextBuffer.CurrentSnapshot.GetText(node.begin, node.end - node.begin);
@@ -95,10 +93,10 @@ namespace MPL.Commands {
     }
 
     private bool findDefinition() {
-      AST.TreeBuilder.Node root = AST.AST.GetASTRoot();
+      ParseTree.Builder.Node root = ParseTree.Tree.Root();
       bool definitionFound = false;
 
-      void Traverse(TreeBuilder.Node node) {
+      void Traverse(Builder.Node node) {
         if (node.children == null) {
           return;
         }
@@ -108,7 +106,7 @@ namespace MPL.Commands {
         }
 
         if (node.name == "Label") {
-          TreeBuilder.Node child = node.children[0];
+          Builder.Node child = node.children[0];
           currName = TextView.TextBuffer.CurrentSnapshot.GetText(child.begin, child.end - child.begin);
           if (currName == selectedName) {
             definitionBegin = child.begin;

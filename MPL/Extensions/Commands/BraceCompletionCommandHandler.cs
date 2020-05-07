@@ -7,7 +7,7 @@ using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Shell;
 using System.Runtime.InteropServices;
-using MPL.AST;
+using MPL.ParseTree;
 using System.Runtime.CompilerServices;
 
 namespace MPL.Commands {
@@ -104,12 +104,12 @@ namespace MPL.Commands {
     private static bool IsClosingBrace(char a) => bracePairs.ContainsValue(a);
 
     private bool IsStringOrComment() {
-      TreeBuilder.Node root = AST.AST.GetASTRoot();
+      Builder.Node root = ParseTree.Tree.Root();
       var notStringOrComment = true;
       var notReached = true;
       var point = TextView.Caret.Position.BufferPosition;
 
-      void Traverse(TreeBuilder.Node node) {
+      void Traverse(Builder.Node node) {
         if (node.children == null) {
           if (notReached && node.begin < point.Position && node.end >= point.Position) {
             if (node.name == "Comment" || (node.name == "String" && node.end != point.Position)) {

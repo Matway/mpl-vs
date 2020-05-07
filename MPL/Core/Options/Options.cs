@@ -12,21 +12,15 @@ namespace MPL {
     [DefaultValue(false)]
     public bool SharpStyleBraceMatch { get; set; } = false;
 
-    public enum LineEnding { LINUX, WINDOWS, AS_IS }
+    public enum LineEnding { Unix, Windows, Document }
 
-    [Category("Line Endings")]
-    [DisplayName("Choose line endings")]
-    [Description("UNIX(DEFAULT) - LF, WINDOWS - CRLF, AS IS - leave as is")]
-    [DefaultValue(LineEnding.LINUX)]
-    public LineEnding LineEndings { get; set; } = LineEnding.LINUX;
+    [Category("Code formatting")]
+    [DisplayName("Line endings")]
+    [Description("After you format a document, it will have line endings as in:\n  Unix (default) - LF\n  Windows - CRLF\n  Document - leave as is")]
+    [DefaultValue(LineEnding.Unix)]
+    public LineEnding LineEndings { get; set; } = LineEnding.Unix;
 
-    [Category("Autoindentation")]
-    [DisplayName("Autoindentation")]
-    [Description("Defines if there will be autoindentation on ENTER")]
-    [DefaultValue(true)]
-    public bool AutoIndent { get; set; } = true;
-
-    [Category("AutoBraceCompletion")]
+    [Category("Brace completion")]
     [DisplayName("Auto brace completion")]
     [Description("Defines if bracket will be completed automatically")]
     [DefaultValue(true)]
@@ -84,5 +78,4 @@ namespace MPL {
       return string.Join(delimiter, v);
     }
   }
-
 }

@@ -36,7 +36,7 @@ namespace MPL.Classification {
     private bool labelDefenition, labelResetDefenition;
     private int labelStartIndex, labelResetIndex;
 
-    public void Parse(MPL.AST.TreeBuilder.Node node) {
+    public void Parse(MPL.ParseTree.Builder.Node node) {
       if (node.children == null) {
         terminal(node.name, node.begin, node.end);
         return;
@@ -170,12 +170,12 @@ namespace MPL.Classification {
 
     public void textChanged(object o, TextContentChangedEventArgs e) {
       ThreadHelper.ThrowIfNotOnUIThread();
-      AST.AST.Parse(e.After.GetText(), out bool parsed);
+      ParseTree.Tree.Parse(e.After.GetText(), out bool parsed);
       results.Clear();
-      var root = AST.AST.GetASTRoot();
+      var root = ParseTree.Tree.Root();
       Parse(root);
       //results.Add(new Result { span = new Span(0, e.After.Length - 1), type = NodeType.MPLCONTENT });
-      var errorStack = AST.AST.GetErrorStack();
+      var errorStack = ParseTree.Tree.GetErrorStack();
       generalPane.Clear();
       if (!parsed) {
         try {
@@ -212,7 +212,7 @@ namespace MPL.Classification {
 
     internal MplClassifier(IClassificationTypeRegistryService registry, ITextBuffer buffer) : base(0) {
       ThreadHelper.ThrowIfNotOnUIThread();
-      AST.AST.Parse(buffer.CurrentSnapshot.GetText(), out bool parsed);
+      ParseTree.Tree.Parse(buffer.CurrentSnapshot.GetText(), out bool parsed);
 
       classificationTypes = new Dictionary<NodeType, IClassificationType> {
         [NodeType.MPLCONTENT] = registry.GetClassificationType("MplContent"),
@@ -226,10 +226,10 @@ namespace MPL.Classification {
         [NodeType.CODEBRACKETS] = registry.GetClassificationType("MplCodeBrackets")
       };
 
-      var root = AST.AST.GetASTRoot();
+      var root = ParseTree.Tree.Root();
       Parse(root);
       //results.Add(new Result{span = new Span(0, buffer.CurrentSnapshot.Length - 1), type = NodeType.MPLCONTENT});
-      var errorStack = AST.AST.GetErrorStack();
+      var errorStack = ParseTree.Tree.GetErrorStack();
       if (!parsed) {
         try {
           generalPane.Clear();
