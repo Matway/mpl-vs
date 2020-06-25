@@ -7,7 +7,6 @@ using System.Text;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
-
 namespace MPL {
   public class MPLParser {
     public class ParseException : Exception {
@@ -418,7 +417,7 @@ namespace MPL {
         ++end;
         while (end < size && input[end] != '"') {
           if (input[end] == '\\') {
-            if (end + 1 >= size || (input[end + 1] != '\\' && input[end + 1] != '\"')) {
+            if (end + 1 >= size || (checkUTF(input[end + 1]) && input[end + 1] != '\\' && input[end + 1] != '\"' && input[end + 1] != 'n' && input[end + 1] != 'r' && input[end + 1] != 't')) {
               throwException(end, "String", "Unexpected symbol");
               ++end;
               isOk = false;
@@ -739,6 +738,10 @@ namespace MPL {
       isBuiltin = false;
     }
 
+    private bool checkUTF(char c) {
+      return !((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F'));
+    }
+
     private bool checkName(char c) {
       return (checkLetter(c) || c == '.');
     }
@@ -761,7 +764,7 @@ namespace MPL {
       eventHandler.pushError(position, currentLine, position - (input.Substring(0, position)).LastIndexOf('\n'), token, message);
     }
 
-    private void getName(int begin , int end) {
+    private void getName(int begin, int end) {
       string name = input.Substring(begin, end - begin);
       eventHandler.getName(name);
     }
