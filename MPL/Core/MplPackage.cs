@@ -86,7 +86,7 @@ namespace MPL {
       private set;
     }
 
-    internal static List<(string id, string displayname)> LoadedThemes {
+    internal static List<Theme> LoadedThemes {
       get;
       private set;
     }
@@ -184,7 +184,7 @@ namespace MPL {
       DTE Dte = (DTE)Package.GetGlobalService(typeof(DTE));
 
       string registryPath = Dte.RegistryRoot + "_Config\\Themes";
-      var themes = new List<(string id, string displayname)>();
+      var themes = new List<Theme>();
       string[] installedThemesKeys;
       RegistryKey themesKey = Registry.CurrentUser.OpenSubKey(registryPath);
 
@@ -193,7 +193,7 @@ namespace MPL {
         foreach (string key in installedThemesKeys) {
           using (RegistryKey themeKey = themesKey.OpenSubKey(key)) {
             if (themeKey != null) {
-              themes.Add((key, themeKey.GetValue(null).ToString()));
+              themes.Add(new Theme {id = key, name = themeKey.GetValue(null).ToString()});
             }
           }
         }
@@ -222,12 +222,17 @@ namespace MPL {
           settings = storedSetting.Split('*');
           if (settings.Length > 2) {
             id = string.Format(CultureInfo.InvariantCulture, "{{{0}}}", settings[2]);
-            themeName = themes.FirstOrDefault(t => t.id.Equals(id, StringComparison.OrdinalIgnoreCase)).displayname;
+            themeName = themes.FirstOrDefault(t => t.id.Equals(id, StringComparison.OrdinalIgnoreCase)).name;
           }
         }
       }
 
       return themeName;
+    }
+
+    internal struct Theme {
+      public string id;
+      public string name;
     }
   }
 }
