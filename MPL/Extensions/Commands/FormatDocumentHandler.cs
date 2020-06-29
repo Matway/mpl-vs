@@ -158,6 +158,7 @@ namespace MPL.Commands {
         case "']'":
         case "'}'":
         case "')'":
+        case "';'":
         if (currentLevelBrackets.Count == 0 && bracketsStack.Count > 0 && bracketsStack.Peek().Count != 0) {
           if (currentToken.line == bracketsStack.Peek().Peek().line) {
             bracketsStack.Peek().Pop();
@@ -208,7 +209,7 @@ namespace MPL.Commands {
         break;
       }
 
-      if (currentToken.name == "'['" || currentToken.name == "'{'" || currentToken.name == "'('") {
+      if (currentToken.name == "'['" || currentToken.name == "'{'" || currentToken.name == "'('" || currentToken.name == "':'") {
         if (bracketsStack.Count == 0 && currentLevelBrackets.Count == 0) {
           bracketsStack.Push(new Stack<Builder.Node>());
           bracketsStack.Peek().Push(currentToken);
