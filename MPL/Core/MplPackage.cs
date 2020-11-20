@@ -193,7 +193,9 @@ namespace MPL {
         foreach (string key in installedThemesKeys) {
           using (RegistryKey themeKey = themesKey.OpenSubKey(key)) {
             if (themeKey != null) {
-              themes.Add(new Theme {id = key, name = themeKey.GetValue(null).ToString()});
+              if (themeKey.GetValue(null) is object name) {
+                themes.Add(new Theme {id = key, name = name.ToString()});
+              }
             }
           }
         }
