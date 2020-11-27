@@ -122,24 +122,23 @@ namespace MPL.Intellisense {
     }
 
     private bool StartSession() {
-      //the caret must be in a non-projection location 
       SnapshotPoint? caretPoint = _textView.Caret.Position.Point.GetPoint(textBuffer => (!textBuffer.ContentType.IsOfType("projection")), PositionAffinity.Predecessor);
-      if (!caretPoint.HasValue) {
+
+      if (MplPackage.completionSession || !caretPoint.HasValue) {
         return false;
       }
 
       _currentSession = _provider.CompletionBroker.CreateCompletionSession(_textView, caretPoint.Value.Snapshot.CreateTrackingPoint(caretPoint.Value.Position, PointTrackingMode.Positive), true);
 
       if (_currentSession != null) {
-        _currentSession.Dismissed += this.OnSessionDismissed; //subscribe to the Dismissed event on the session 
+        _currentSession.Dismissed += this.OnSessionDismissed;
         _currentSession.Start();
-
 
         MplPackage.completionSession = true;
         return true;
-      } else {
-        return false;
       }
+
+      return false;
     }
 
     private bool Cancel() {
