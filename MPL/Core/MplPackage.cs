@@ -134,6 +134,7 @@ namespace MPL {
       get {
         ThreadHelper.ThrowIfNotOnUIThread();
         if (_options == null) {
+          // TODO: Probably, a lock alone do not guarantee committing the changes to the main memory.
           lock (_syncRoot) {
             if (_options == null) {
               LoadPackage();
@@ -154,7 +155,6 @@ namespace MPL {
       await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
 
       Instance = this;
-      _options = (Options)GetDialogPage(typeof(Options));
 
       LanguageSettings = new LanguageSettings();
 
@@ -172,11 +172,13 @@ namespace MPL {
     private static void LoadPackage() {
       ThreadHelper.ThrowIfNotOnUIThread();
       var shell = (IVsShell)GetGlobalService(typeof(SVsShell));
-
-      IVsPackage package;
-
-      if (shell.IsPackageLoaded(ref Constants.PackageGuid, out package) != VSConstants.S_OK)
+      if (shell.IsPackageLoaded(ref Constants.PackageGuid, out var package) != VSConstants.S_OK) {
         ErrorHandler.Succeeded(shell.LoadPackage(ref Constants.PackageGuid, out package));
+      }
+
+      // We will not check the package against null, because there is no another way to get an object at this time.
+      // So if it's failed then we cannot do something useful anyway.
+      _options = (package as MplPackage).GetDialogPage(typeof(Options)) as Options;
     }
 
     private static void GetLoadedThemes() {
