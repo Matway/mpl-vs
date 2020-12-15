@@ -22,9 +22,6 @@ jobs:
     - name: setup-msbuild
       uses: microsoft/setup-msbuild@master
 
-    - name: nuget restore
-      run: nuget restore .
-
     - name: msbuild .
       run: msbuild . /m /p:configuration=${{matrix.configuration}}
 
