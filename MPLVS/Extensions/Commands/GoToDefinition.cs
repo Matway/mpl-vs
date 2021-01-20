@@ -1,17 +1,21 @@
-﻿using System;
-using System.IO;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
-using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.TextManager.Interop;
-using MPL.ParseTree;
 
-namespace MPL.Commands {
-  internal class GoToDefinitionCommandHandler : VSCommandTarget<VSConstants.VSStd97CmdID> {
+using MPLVS.Core;
+using MPLVS.Core.ParseTree;
+using MPLVS.Extensions;
+using MPLVS.ParseTree;
+
+namespace MPLVS.Commands {
+  internal class GoToDefinition : VSCommandTarget<VSConstants.VSStd97CmdID> {
     private string selectedName;
     private int selectionEnd;
     private string currName;
@@ -19,7 +23,7 @@ namespace MPL.Commands {
     private int definitionEnd;
     private bool nameFound = false;
 
-    public GoToDefinitionCommandHandler(IVsTextView vsTextView, IWpfTextView textView) : base(vsTextView, textView) { }
+    public GoToDefinition(IVsTextView vsTextView, IWpfTextView textView) : base(vsTextView, textView) { }
 
     protected override IEnumerable<VSConstants.VSStd97CmdID> SupportedCommands() {
       yield return VSConstants.VSStd97CmdID.GotoDefn;
@@ -31,70 +35,73 @@ namespace MPL.Commands {
         selectedName = TextView.TextBuffer.CurrentSnapshot.GetText(TextView.Selection.SelectedSpans.First().Span);
         selectionEnd = TextView.Selection.End.Position.Position;
         nameFound = true;
-      } else {
-        nameFound = findTheName();
+      }
+      else {
+        nameFound = FindTheName();
       }
 
       if (nameFound) {
-        if (findDefinition()) {
-          SnapshotPoint defBegin = new SnapshotPoint(TextView.TextSnapshot, definitionBegin);
-          SnapshotPoint defEnd = new SnapshotPoint(TextView.TextSnapshot, definitionEnd);
-          TextView.Selection.Clear();
-          TextView.Selection.Select(new SnapshotSpan(defBegin, defEnd), false);
-          TextView.Caret.MoveTo(defEnd);
-          TextView.Caret.EnsureVisible();
-          int offset = TextView.TextViewLines.Count / 2 - TextView.TextViewLines.GetIndexOfTextLine(TextView.Caret.ContainingTextViewLine);
-          if (offset > 0) {
-            TextView.ViewScroller.ScrollViewportVerticallyByLines(ScrollDirection.Up, offset);
-          } else {
-            TextView.ViewScroller.ScrollViewportVerticallyByLines(ScrollDirection.Down, -offset);
-          }
-        } else {
-          //vsRunningDocumentTable.
-          //MplPackage.Dte.FullName.ToString();
-          //StreamReader streamReader = File.OpenText("");
+        if (FindDefinition()) {
+          var defBegin = new SnapshotPoint(TextView.TextSnapshot, definitionBegin);
+          var defEnd   = new SnapshotPoint(TextView.TextSnapshot, definitionEnd);
+
+          // FIXME: The file is already open, so just move the caret\view.
+          Files.GetTextViewForDocument(TextView.TextBuffer.GetFileName(), defBegin, defEnd - defBegin);
+        }
+        else {
+          //vsRunningDocumentTable.                        //
+          //MplPackage.Dte.FullName.ToString();            // TODO: This is an old commented code, consider to reuse it.
+          //StreamReader streamReader = File.OpenText(""); //
+
+          FindDefinitionsFromEntireProject();
         }
       }
 
       return true;
     }
 
-    private bool findTheName() {
-      ParseTree.Builder.Node root = ParseTree.Tree.Root();
+    private bool FindTheName() {
+      var root        = TextView.TextBuffer.ObtainOrAttachTree().Root();
+      var cursor      = TextView.Caret.Position.BufferPosition.Position;
+      var symbol      = root.YongestAncestor(cursor);
+      var predecessor = cursor < 1 ? null : root.YongestAncestor(cursor - 1); // FIXME: Do not use YongestAncestor twice, if possible.
 
-      int caretPosition = TextView.Caret.Position.BufferPosition.Position;
-      bool foundName = false;
+      return
+        predecessor is object && predecessor.end == cursor && predecessor.name.StartsWith("Name")
+        ? FromSomeName(predecessor)
+        : symbol is object && FromSomeName(symbol);
 
-      void Traverse(Builder.Node node) {
-        if (node.children == null) {
-          if (node.name == "Name") {
-            selectedName = TextView.TextBuffer.CurrentSnapshot.GetText(node.begin, node.end - node.begin);
-            selectionEnd = node.end;
-            foundName = true;
-          } else if (node.name == "NameWrite" || node.name == "NameRead") {
-            selectedName = TextView.TextBuffer.CurrentSnapshot.GetText(node.begin + 1, node.end - node.begin - 1);
-            selectionEnd = node.end;
-            foundName = true;
-          }
+      bool FromSomeName(Builder.Node node) {
+        var result = false;
 
-          return;
+        switch (node.name) {
+          case "Name":
+            Name(node, 0); break;
+
+          case "NameRead":
+          case "NameWrite":
+          case "NameMember":
+            Name(node, 1); break;
+
+          case "NameReadMember":
+          case "NameWriteMember":
+            Name(node, 2); break;
         }
 
-        foreach (var child in node.children) {
-          if (child.begin <= caretPosition && child.end >= caretPosition) {
-            Traverse(child);
-          }
+        return result;
+
+        void Name(Builder.Node name, int offset) {
+          selectedName = TextView.TextBuffer.CurrentSnapshot.GetText(name.begin + offset, name.end - name.begin - offset);
+          selectionEnd = name.end;
+
+          result = true;
         }
       }
-
-      Traverse(root);
-
-      return foundName;
     }
 
-    private bool findDefinition() {
-      ParseTree.Builder.Node root = ParseTree.Tree.Root();
-      bool definitionFound = false;
+    private bool FindDefinition() {
+      var root            = TextView.TextBuffer.ObtainOrAttachTree().Root();
+      var definitionFound = false;
 
       void Traverse(Builder.Node node) {
         if (node.children == null) {
@@ -106,11 +113,11 @@ namespace MPL.Commands {
         }
 
         if (node.name == "Label") {
-          Builder.Node child = node.children[0];
-          currName = TextView.TextBuffer.CurrentSnapshot.GetText(child.begin, child.end - child.begin);
+          var child = node.children[0];
+          currName  = TextView.TextBuffer.CurrentSnapshot.GetText(child.begin, child.end - child.begin);
           if (currName == selectedName) {
             definitionBegin = child.begin;
-            definitionEnd = child.end;
+            definitionEnd   = child.end;
             definitionFound = true;
           }
         }
@@ -127,12 +134,74 @@ namespace MPL.Commands {
       return definitionFound;
     }
 
-    protected override VSConstants.VSStd97CmdID ConvertFromCommandId(uint id) {
-      return (VSConstants.VSStd97CmdID)id;
+    private void FindDefinitionsFromEntireProject() {
+      var symbols             = this.DefinitionsFromAProject(TextView.TextBuffer.GetFileName());
+      var howMachSymbolsFound = symbols.SelectMany(a => a.Labels).Take(2).Count();
+
+      switch (howMachSymbolsFound) {
+        case 0: break;
+
+        case 1: {
+          var group = symbols.First();
+          Files.GetTextViewForDocument(group.File, group.Labels.First().Position, this.selectedName.Length);
+          break;
+        }
+
+        // 2 means that was found more than one symbol.
+        case 2: {
+          ShowDefinitions(symbols);
+          break;
+        }
+
+        default:
+          Debug.Fail(howMachSymbolsFound.ToString());
+          break;
+      }
     }
 
-    protected override uint ConvertFromCommand(VSConstants.VSStd97CmdID command) {
-      return (uint)command;
+    private List<Definitions> DefinitionsFromAProject(string root) =>
+      Symbols.Files.TreesFromAWholeProject(root)
+        .Where(a => a.Root is object)
+        .Select(a => new {
+          a.File,
+          Labels = Symbols.Files.Labels(a.Root)
+                                .Select(b => b.LabelName())
+                                .Select(b => new { Name = Symbols.Files.Text(b, a.Input), Location = b })
+                                .Where(b => b.Name == selectedName)
+                                .Select(b => new Location { Line = b.Location.line, Column = b.Location.column, Position = b.Location.begin })
+        })
+        .Where(a => a.Labels.Any())
+        .Select(a => new Definitions { File = a.File, Labels = a.Labels.ToList() })
+        .ToList();
+
+    private void ShowDefinitions(IEnumerable<Definitions> symbols) {
+      ThreadHelper.ThrowIfNotOnUIThread();
+
+      Output.Pane.Clear();
+      Output.Pane.OutputString("Possible definitions of \"" + selectedName + "\":\n");
+
+      foreach (var group in symbols) {
+        foreach (var location in group.Labels) {
+          Output.Pane.OutputString(group.File + "(" + (location.Line + 1) + "," + (location.Column + 1) + ")\n");
+        }
+      }
+
+      Output.Activate();
+    }
+
+    protected override VSConstants.VSStd97CmdID ConvertFromCommandId(uint id) =>
+      (VSConstants.VSStd97CmdID)id;
+
+    protected override uint ConvertFromCommand(VSConstants.VSStd97CmdID command) =>
+      (uint)command;
+
+    private struct Definitions {
+      public string File;
+      public List<Location> Labels;
+    }
+
+    private struct Location {
+      public int Line, Column, Position;
     }
   }
 }

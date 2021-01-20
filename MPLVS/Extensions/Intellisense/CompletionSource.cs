@@ -1,56 +1,73 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.ComponentModel.Composition;
-using Microsoft.VisualStudio.Language.Intellisense;
-using Microsoft.VisualStudio.Text;
-using Microsoft.VisualStudio.Text.Operations;
-using Microsoft.VisualStudio.Utilities;
-using MPL.ParseTree;
 
-namespace MPL.Intellisense {
+using Microsoft.VisualStudio.Language.Intellisense;
+using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Text;
+
+using MPLVS.Core;
+using MPLVS.Core.ParseTree;
+using MPLVS.Extensions;
+
+namespace MPLVS.Intellisense {
   internal class CompletionSource : ICompletionSource {
-    private CompletionSourceProvider _sourceProvider;
-    private ITextBuffer _textBuffer;
-    private List<Completion> _compList;
+    private readonly CompletionSourceProvider _sourceProvider;
+    private readonly ITextBuffer _textBuffer;
     private bool _isDisposed;
 
     public CompletionSource(CompletionSourceProvider sourceprovider, ITextBuffer textBuffer) {
       _sourceProvider = sourceprovider;
-      _textBuffer = textBuffer;
+      _textBuffer     = textBuffer;
     }
 
     void ICompletionSource.AugmentCompletionSession(ICompletionSession session, IList<CompletionSet> completionSets) {
-      List<string> strList = new List<string>();
-      _compList = new List<Completion>();
+      ThreadHelper.ThrowIfNotOnUIThread();
 
-      foreach (string builtin in Constants.MplBuiltins) {
-        if (builtin.Length > 1) {
-          strList.Add(builtin);
-          _compList.Add(new Completion(builtin, builtin, "builtin function", null, null));
-        }
-      }
+      var names   = this.CurrentSymbols(MplPackage.Options.AutocompletionProjectWideSearch);
+      var symbols = names.Select(a => new Completion(a.Name, a.Name, a.Origins, null, null));
+      var span    = FindTokenSpanAtPosition(session.GetTriggerPoint(_textBuffer), session);
 
-      foreach (string name in ParseTree.Tree.nameList) {
-        if (!strList.Contains(name)) {
-          _compList.Add(new Completion(name, name, null, null, null));
-        }
-      }
-
-      completionSets.Add(new CompletionSet(
-          "Tokens",    //the non-localized title of the tab
-          "Tokens",    //the display title of the tab
-          FindTokenSpanAtPosition(session.GetTriggerPoint(_textBuffer), session),
-          _compList,
-          null));
+      completionSets.Add(new CompletionSet("all", "Symbols", span, symbols, null));
     }
 
+    private IEnumerable<Symbol> CurrentSymbols(bool forWholeProject) {
+      ThreadHelper.ThrowIfNotOnUIThread();
+
+      var currentFile      = this._textBuffer.GetFileName();
+      var currentDirectory = Path.GetDirectoryName(currentFile);
+
+      if (forWholeProject) {
+        return AssemblySymbols(currentDirectory, Symbols.Files.TreesFromAWholeProject(currentFile));
+      }
+
+      return
+        AssemblySymbols(currentDirectory, new[] {
+          new Symbols.OriginAndTree {
+            File  = currentFile,
+            Input = this._textBuffer.CurrentSnapshot.GetText(),
+            Root  = this._textBuffer.ObtainOrAttachTree().Root()
+          }
+        });
+    }
+
+    private static IEnumerable<Symbol> AssemblySymbols(string currentDirectory, IEnumerable<Symbols.OriginAndTree> trees) =>
+      trees.Where(a => a.Root is object)
+           .Select(a => new { File = PathNetCore.GetRelativePath(currentDirectory, a.File), a.Input, Names = Symbols.Files.Labels(a.Root).Select(b => Symbols.Files.Text(b.LabelName(), a.Input)) })
+           .Select(a => new { a.File, Names = a.Names.Union(Array.Empty<string>()) })
+           .SelectMany(a => a.Names.Select(Label => new { a.File, Label }))
+           .Concat(Constants.Builtins.Select(a => new { File = "Built-in", Label = a })) // FIXME: GC.
+           .OrderBy(a => a.Label)
+           .GroupBy(a => a.Label)
+           .Select(a => new Symbol { Name = a.Key, Origins = string.Join("\n", a.Select(b => b.File).OrderBy(b => b)) });
+
     private ITrackingSpan FindTokenSpanAtPosition(ITrackingPoint point, ICompletionSession session) {
-      SnapshotPoint currentPoint = (session.TextView.Caret.Position.BufferPosition) - 1;
-      ITextStructureNavigator navigator = _sourceProvider.NavigatorService.GetTextStructureNavigator(_textBuffer);
-      TextExtent extent = navigator.GetExtentOfWord(currentPoint);
+      var cursor       = session.TextView.Caret.Position.BufferPosition;
+      var currentPoint = cursor > 0 ? cursor - 1 : cursor;
+      var navigator    = _sourceProvider.NavigatorService.GetTextStructureNavigator(_textBuffer);
+      var extent       = navigator.GetExtentOfWord(currentPoint);
+
       return currentPoint.Snapshot.CreateTrackingSpan(extent.Span, SpanTrackingMode.EdgeInclusive);
     }
 
@@ -59,6 +76,11 @@ namespace MPL.Intellisense {
         GC.SuppressFinalize(this);
         _isDisposed = true;
       }
+    }
+
+    private struct Symbol {
+      public string Name;
+      public string Origins;
     }
   }
 }

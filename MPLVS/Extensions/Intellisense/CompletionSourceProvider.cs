@@ -1,16 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.ComponentModel.Composition;
-using Microsoft.VisualStudio.Language;
+
 using Microsoft.VisualStudio.Language.Intellisense;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Operations;
 using Microsoft.VisualStudio.Utilities;
-namespace MPL.Intellisense {
 
+namespace MPLVS.Intellisense {
   [Export(typeof(ICompletionSourceProvider))]
   [ContentType(Constants.MPLContentType)]
   [Name("token completion")]
@@ -18,8 +13,8 @@ namespace MPL.Intellisense {
     [Import]
     internal ITextStructureNavigatorSelectorService NavigatorService { get; set; }
 
-    public ICompletionSource TryCreateCompletionSource(ITextBuffer textBuffer) {
-      return new CompletionSource(this, textBuffer);
-    }
+    public ICompletionSource TryCreateCompletionSource(ITextBuffer buffer) =>
+      // TODO: Should we create it like this: buffer?.ObtainOrAttachProperty(() => new CompletionSource(this, buffer)); ?
+      new CompletionSource(this, buffer);
   }
 }

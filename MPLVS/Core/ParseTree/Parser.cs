@@ -1,773 +1,691 @@
 // This file was generated on Sat Jul 1, 2017 20:11 (UTC+03) by REx v5.45 which is Copyright (c) 1979-2017 by Gunther Rademacher <grd@gmx.net>
-// REx command line: mplGrammar_Jul01.ebnf -tree -ll 2 -faster -csharp
+// REx command line: mplGrammar_2017Jul01_reduced-extended.ebnf -tree -ll 2 -faster -csharp
 
 using System;
-using System.IO;
-using System.Text;
-using System.Collections.Generic;
-using System.Text.RegularExpressions;
+using System.Collections.Immutable;
+using System.Diagnostics;
+using System.Globalization;
+using System.Runtime.CompilerServices;
 
-namespace MPL {
-  public class MPLParser {
-    public class ParseException : Exception {
-      int position { get; set; }
-      int line { get; set; }
-      int column { get; set; }
+namespace MPLVS {
+  public class Parser {
+    public event EventHandler Reset;
+    public event EventHandler Compleate;
+    public event EventHandler<(string name, int begin, int line, int column)> StartCompound;
+    public event EventHandler<(string name, int end)> EndCompound;
+    public event EventHandler<(string name, int begin, int end, int line, int column)> Terminal;
+    public event EventHandler<SyntaxError> PushError;
 
-      public ParseException(int p, int l, int c, string t, string m) {
-        position = p;
-        token = t;
-        message = m;
-        line = l + 1;
-        column = c;
+    public class SyntaxError {
+      internal int Begin { get; set; }
+      internal int End { get; set; }
+      internal string Token;
+      internal string RawMessage;
+
+      public SyntaxError(int begin, int end, string token, string message) {
+        this.Begin      = begin;
+        this.End        = end;
+        this.Token      = token;
+        this.RawMessage = message;
       }
 
-      public String getMessage() {
+      public string Message =>
+        $" | Pos: {Begin.ToString(CultureInfo.InvariantCulture)}, Error message: \"{RawMessage}\" in token: {Token}";
+    }
 
-        return ("(" + line.ToString() + "," + column.ToString() + "): " +
-          "Error message: " + '"' + message + '"' + " in token: " + token);
+    public struct PositionInfo {
+      public PositionInfo(int cursor = 0, int line = 0, int lineBegin = 0) {
+        Debug.Assert(cursor >= 0 && line >= 0 && lineBegin >= 0);
+        Debug.Assert(lineBegin <= cursor);
+
+        Cursor    = cursor;
+        Line      = line;
+        LineBegin = lineBegin;
       }
 
-      private string token, message;
+      public int Cursor;
+
+      /// <summury>NOTE: Zero-based.</summury>
+      public int Line;
+
+      public int LineBegin;
+
+      /// <summury>NOTE: Zero-based.</summury>
+      public int Column {
+        get {
+          var result = Cursor - LineBegin;
+          Debug.Assert(result >= 0);
+
+          return result;
+        }
+      }
     }
 
-    public interface EventHandler {
-      void reset(String s);
-      void startNonterminal(String name, int begin, int line);
-      void endNonterminal(String name, int end);
-      void terminal(String name, int begin, int end, int line);
-      void whitespace(int begin, int end);
-      void pushError(int p, int l, int c, string t, string m);
-      void getName(string name);
+    public Parser() { }
+
+    public void Initialize(string s) {
+      Input = s ?? throw new ArgumentNullException(nameof(s));
+      Size  = Input.Length;
+
+      ResetState();
     }
 
-    public MPLParser() { }
+    public void ResetState() {
+      this.Pos = new PositionInfo();
 
-    public void initialize(String s, EventHandler eh) {
-      eventHandler = eh;
-      input = s;
-      size = input.Length;
-      reset(0, 0, 0);
+      this.Reset?.Invoke(this, null);
     }
 
-    public String getInput() {
-      return input;
+    private PositionInfo Pos = new PositionInfo();
+    private string Input     = null;
+    private int Size         = 0;
+
+    private bool HasInput => Pos.Cursor < Size;
+    private char CurChar  => Input[Pos.Cursor];
+    private bool HasNext  => Pos.Cursor + 1 < Size;
+    private char NextChar => Input[Pos.Cursor + 1];
+    private bool AtEnd    => !HasInput;
+
+    private static string FormatExpected(string expected, string got) =>
+      "Got:\t\t" + got + "\nExpected:\t" + expected;
+
+    private bool CurPairIs(char a, char b) => CurChar == a && NextChar == b;
+
+    private bool CurIsAnyOf(in string set) => set.IndexOf(CurChar) >= 0;
+
+    private void Advance(bool linesAsTerminals = true) {
+      Debug.Assert(!AtEnd, "Attempt to advance the empty buffer");
+
+      ++Pos.Cursor;
+      ProcessNewLinesIfAny(linesAsTerminals);
     }
 
-    public void reset(int b, int e, int l) {
-      begin = b;
-      end = e;
-      currentLine = l;
-      eventHandler.reset(input);
+    private void AdvanceAtCurrent(bool linesAsTerminals = true) {
+      var start = Pos.Cursor;
+
+      ProcessNewLinesIfAny(linesAsTerminals);
+      if (Pos.Cursor == start) {
+        Debug.Assert(!AtEnd, "Attempt to advance the empty buffer");
+
+        ++Pos.Cursor;
+      }
     }
 
-    public void reset() {
-      reset(0, 0, 0);
-    }
-
-    public void parse_ProgramWithEOF() {
-      eventHandler.startNonterminal("ProgramWithEOF", begin, currentLine);
-      if (size != 0) {
-        parse_Program();
+    private void ProcessNewLinesIfAny(bool linesAsTerminals = true) {
+      while (HasInput && (CurChar == '\n' || CurChar == '\r')) {
+        ProcessNewLineIfAny(linesAsTerminals);
       }
 
-      eventHandler.terminal("EOF", size, size, currentLine);
-      eventHandler.endNonterminal("ProgramWithEOF", size);
+      void ProcessNewLineIfAny(bool lineAsTerminal) {
+        switch (CurChar) {
+          case '\n': {
+            var start = Pos;
+            ++Pos.Line;
+            Pos.LineBegin = ++Pos.Cursor;
+            if (lineAsTerminal) {
+              Terminal?.Invoke(this, ("LF", start.Cursor, Pos.Cursor, start.Line, start.Column));
+            }
+            break;
+          }
+
+          case '\r': {
+            if (HasNext && NextChar == '\n') {
+              var start = Pos;
+              ++Pos.Line;
+              Pos.LineBegin = Pos.Cursor += 2;
+              if (lineAsTerminal) {
+                Terminal?.Invoke(this, ("CRLF", start.Cursor, Pos.Cursor, start.Line, start.Column));
+              }
+            }
+            else {
+              ProcessOrphanCR();
+            }
+            break;
+          }
+        }
+
+        void ProcessOrphanCR() {
+          Error("CR", "CR (aka \\r) that not followed by LF (aka \\n) is not allowed");
+          ++Pos.Line;
+          Pos.LineBegin = ++Pos.Cursor;
+        }
+      }
     }
 
-    private int begin = 0, end = 0, size = 0, currentLine = 0;
-    private EventHandler eventHandler = null;
-    private String input = null;
-    private bool isBuiltin = false;
-
-    private void parse_Program(char ending) {
-      eventHandler.startNonterminal("Program", begin, currentLine);
-      if (end < size && (input[begin] == ' ' || input[begin] == '\n' || input[begin] == '\r' || input[begin] == '\t')) {
-        parseTk_Whitespaces();
+    public void ParseProgramWithEOF() {
+      StartCompound?.Invoke(this, ("ProgramWithEOF", Pos.Cursor, Pos.Line, Pos.Column));
+      if (Size != 0) {
+        ParseProgram(() => HasInput);
       }
 
-      if (end < size && input[end] != ending) {
-        parse_Expression();
-        //now parsing expressionWithLeadingWS
-        while (end < size && input[end] != ending) {
-          if (input[begin] == ' ' || input[begin] == '\n' || input[begin] == '\r' || input[begin] == '\t') {
-            parseTk_Whitespaces();
-            if (end < size && input[end] != ending) {
-              parse_Expression();
-            } else {
+      Terminal?.Invoke(this, ("EOF", Size, Size, Pos.Line, Pos.Column));
+      EndCompound?.Invoke(this, ("ProgramWithEOF", Size));
+
+      Compleate?.Invoke(this, null);
+    }
+
+    private void ParseProgram(Func<bool> terminatorIsNotReached) {
+      StartCompound?.Invoke(this, ("Program", Pos.Cursor, Pos.Line, Pos.Column));
+      if (HasInput && IsWS(CurChar)) {
+        ParseWhitespaces();
+      }
+
+      if (terminatorIsNotReached()) {
+        ParseExpression();
+        // now parsing expressionWithLeadingWS
+        while (terminatorIsNotReached()) {
+          if (IsWS(CurChar)) {
+            ParseWhitespaces();
+            if (terminatorIsNotReached()) {
+              ParseExpression();
+            }
+            else {
               break;
             }
-          } else {
-            if (end < size && input[end] != ending) {
-              parse_NonWSSeparableExpression();
-            }
+          }
+          else if (terminatorIsNotReached()) {
+            ParseNonWSSeparableExpression();
           }
         }
       }
 
-      eventHandler.endNonterminal("Program", end);
-      begin = end;
+      EndCompound?.Invoke(this, ("Program", Pos.Cursor));
+
+      void ParseWhitespaces() {
+        StartCompound?.Invoke(this, ("Whitespaces", Pos.Cursor, Pos.Line, Pos.Column));
+        while (HasInput && IsWS(CurChar)) {
+          AdvanceAtCurrent();
+        }
+
+        EndCompound?.Invoke(this, ("Whitespaces", Pos.Cursor));
+      }
     }
 
-    //initial program without args
-    private void parse_Program() {
-      eventHandler.startNonterminal("Program", begin, currentLine);
-      if (end < size && (input[begin] == ' ' || input[begin] == '\n' || input[begin] == '\r' || input[begin] == '\t')) {
-        parseTk_Whitespaces();
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsWS(char ch) =>
+      ch == '\t' || ch == '\n' || ch == '\r' || ch == ' ';
+
+    private void ParseExpression() {
+      StartCompound?.Invoke(this, ("Expression", Pos.Cursor, Pos.Line, Pos.Column));
+
+      if (CurIsAnyOf("#(,.[{")) {
+        ParseNonWSSeparableExpression();
+      }
+      else {
+        ParseWSSeparableExpression();
       }
 
-      if (end < size) {
-        parse_Expression();
-        //now parsing expressionWithLeadingWS
-        while (end < size) {
-          if (input[begin] == ' ' || input[begin] == '\n' || input[begin] == '\r' || input[begin] == '\t') {
-            parseTk_Whitespaces();
-            if (end < size) {
-              parse_Expression();
-            } else {
-              break;
-            }
-          } else {
-            if (end < size) {
-              parse_NonWSSeparableExpression();
-            }
-          }
+      EndCompound?.Invoke(this, ("Expression", Pos.Cursor));
+    }
+
+    private void ParseWSSeparableExpression() {
+      StartCompound?.Invoke(this, ("WSSeparableExpression", Pos.Cursor, Pos.Line, Pos.Column));
+      var cur = CurChar;
+      if (cur == '"' || cur == '«') {
+        ParseString();
+      }
+      else if (cur == '+' || cur == '-') {
+        if (HasNext && IsDigit(NextChar)) {
+          ParseNumber();
+        }
+        else {
+          ParseLabelOrNameExpression();
         }
       }
-
-      eventHandler.endNonterminal("Program", end);
-      begin = end;
-    }
-
-    private void parse_Expression() {
-      eventHandler.startNonterminal("Expression", begin, currentLine);
-      if (input[begin] == ',' || input[begin] == '(' || input[begin] == '[' || input[begin] == '{' || input[begin] == '.' || input[begin] == '#') {
-        parse_NonWSSeparableExpression();
-      } else {
-        parse_WSSeparableExpression();
+      else if (IsDigit(cur)) {
+        ParseNumber();
+      }
+      else if (IsMplLetter(cur) || cur == '.') {
+        ParseLabelOrNameExpression();
+      }
+      else if (cur == '!' || cur == '@') {
+        if (HasNext && NextChar == ':') {
+          ParseLabelOrNameExpression();
+        }
+        else {
+          ParseNameExpression();
+        }
+      }
+      else {
+        var start = Pos;
+        SkipNonWhiteSpaces();
+        Error(start.Cursor, Pos.Cursor, "WSSeparableExpression", "There is nothing that WSSeparableExpression can contain");
       }
 
-      eventHandler.endNonterminal("Expression", end);
-      begin = end;
+      EndCompound?.Invoke(this, ("WSSeparableExpression", Pos.Cursor));
+
+      void SkipNonWhiteSpaces() =>
+        Skip(a => a != ' ' && a != '\n' && a != '\r'); // FIXME: Should we check the tabulation too?
     }
 
-    private void parse_WSSeparableExpression() {
-      eventHandler.startNonterminal("WSSeparableExpression", begin, currentLine);
-      char cur = input[end];
-      if (cur == '"' || cur == '�') {
-        parseTk_String();
-      } else if (cur == '+' || cur == '-') {
-        if (end + 1 < size && Char.IsDigit(input[end + 1])) {
-          parse_Num();
-        } else {
-          parse_NameExpressionOrLableOrLableReset();
-        }
-      } else if (Char.IsDigit(cur)) {
-        parse_Num();
-      } else if (checkName(cur)) {
-        parse_NameExpressionOrLableOrLableReset();
-      } else if (cur == '!' || cur == '@') {
-        if (end + 1 < size && input[end + 1] == ':') {
-          parse_NameExpressionOrLableOrLableReset();
-        } else {
-          parse_NameExpression();
-        }
-      } else {
-        throwException(end, "WSSeparableExpression", "There is nothing that WSSeparableExpression can contain");
-        begin = end;
-        findNextWhitespace();
-        eventHandler.terminal("SomeError", begin, end, currentLine);
-      }
+    private void ParseNonWSSeparableExpression() {
+      StartCompound?.Invoke(this, ("NonWSSeparableExpression", Pos.Cursor, Pos.Line, Pos.Column));
+      switch (CurChar) {
+        case '{': ParseBlock("Object", "'{'", "'}'", '}'); break;
+        case '(': ParseBlock("List",   "'('", "')'", ')'); break;
+        case '[': ParseBlock("Code",   "'['", "']'", ']'); break;
 
-      eventHandler.endNonterminal("WSSeparableExpression", end);
-      begin = end;
-    }
+        case '.': ParseMemberNameExpression(); break;
+        case '#': ParseComment();              break;
 
-    private void parse_NonWSSeparableExpression() {
-      eventHandler.startNonterminal("NonWSSeparableExpression", begin, currentLine);
-      switch (input[begin]) {
-        case '{':
-        parse_Object();
-        break;
-        case '(':
-        parse_List();
-        break;
-        case '[':
-        parse_Code();
-        break;
-        case '.':
-        parse_MemberNameExpression();
-        break;
-        case '#':
-        parseTk_Comment();
-        break;
-        case ',':
-        eventHandler.terminal("','", begin, ++end, currentLine);
-        break;
+        case ',': Terminal?.Invoke(this, ("','", Pos.Cursor, ++Pos.Cursor, Pos.Line, Pos.Column - 1)); break; // TODO: Get rid of this.
+
         default:
-        throwException(end, "NonWSSeparableExpression", "There is nothing that NonWSSeparableExpression can contain");
-        ++end;
-        eventHandler.terminal("SomeError", begin, end, currentLine);
-        break;
+          Error("NonWSSeparableExpression", "There is nothing that NonWSSeparableExpression can contain");
+          ++Pos.Cursor;
+          break;
       }
-
-      eventHandler.endNonterminal("NonWSSeparableExpression", end);
-      begin = end;
+      EndCompound?.Invoke(this, ("NonWSSeparableExpression", Pos.Cursor));
     }
 
-    private void parse_MemberNameExpression() {
-      eventHandler.startNonterminal("MemberNameExpression", begin, currentLine);
-      ++end;
-      if (end < size) {
-        switch (input[end]) {
+    private void ParseBlock(string symbol, string starter, string terminator, char terminatorSign) =>
+      ParseBlock(symbol, starter, terminator, terminatorSign, Pos, () => { });
+
+    private void ParseLabel(PositionInfo start) {
+      ParseBlock("Label", "':'", "';'", ';', start, () => {
+        Terminal?.Invoke(this, ("Name", start.Cursor, Pos.Cursor, start.Line, start.Column));
+      });
+    }
+
+    private void ParseBlock(string symbol, string starter, string terminator, char terminatorSign, PositionInfo start, Action f) {
+      StartCompound?.Invoke(this, (symbol, start.Cursor, start.Line, start.Column));
+      f();
+
+      Terminal?.Invoke(this, (starter, Pos.Cursor, ++Pos.Cursor, Pos.Line, Pos.Column - 1));
+      ParseProgram(() => HasInput && CurChar != terminatorSign);
+      if (HasInput && CurChar == terminatorSign) {
+        Terminal?.Invoke(this, (terminator, Pos.Cursor, ++Pos.Cursor, Pos.Line, Pos.Column - 1));
+      }
+      else {
+        Error(start.Cursor, symbol, FormatExpected("A tail of the " + symbol + " with the " + symbol + " terminator '" + terminatorSign + '\'', "The unterminated " + symbol));
+      }
+
+      EndCompound?.Invoke(this, (symbol, Pos.Cursor));
+    }
+
+    private void ParseMemberNameExpression() {
+      StartCompound?.Invoke(this, ("MemberNameExpression", Pos.Cursor, Pos.Line, Pos.Column));
+      var start = Pos;
+      ++Pos.Cursor; // "."
+      if (HasInput) {
+        switch (CurChar) {
           case '@':
-          ++end;
-          parseTk_MemberName();
-          eventHandler.terminal("NameReadMember", begin, end, currentLine);
-          break;
+            ++Pos.Cursor;
+            ParseMemberName();
+            Terminal?.Invoke(this, ("NameReadMember", start.Cursor, Pos.Cursor, start.Line, start.Column));
+            break;
           case '!':
-          ++end;
-          parseTk_MemberName();
-          eventHandler.terminal("NameWriteMember", begin, end, currentLine);
-          break;
+            ++Pos.Cursor;
+            ParseMemberName();
+            Terminal?.Invoke(this, ("NameWriteMember", start.Cursor, Pos.Cursor, start.Line, start.Column));
+            break;
           default:
-          parseTk_MemberName();
-          eventHandler.terminal("NameMember", begin, end, currentLine);
-          break;
+            ParseMemberName();
+            Terminal?.Invoke(this, ("NameMember", start.Cursor, Pos.Cursor, start.Line, start.Column));
+            break;
         }
       }
 
-      eventHandler.endNonterminal("MemberNameExpression", end);
-      begin = end;
+      EndCompound?.Invoke(this, ("MemberNameExpression", Pos.Cursor));
     }
 
-    private void parse_NameExpression() {
-      eventHandler.startNonterminal("NameExpression", begin, currentLine);
-      switch (input[end]) {
-        case '@':
-        ++end;
-        if (end < size && (input[end] == '+' || input[end] == '-' || input[end] == '@' || input[end] == '!' || input[end] == '.' || checkLetter(input[end]))) {
-          parse_Name();
-          if (isBuiltin) {
-            eventHandler.terminal("NameRead", begin, begin + 1, currentLine);
-            eventHandler.terminal("Builtin", begin + 1, end, currentLine);
-            isBuiltin = false;
-          } else {
-            eventHandler.terminal("NameRead", begin, end, currentLine);
-          }
-        } else {
-          eventHandler.terminal("Builtin", begin, end, currentLine); //it's just name, then it's builtin
+    private void ParseNameExpression() {
+      StartCompound?.Invoke(this, ("NameExpression", Pos.Cursor, Pos.Line, Pos.Column));
+      switch (CurChar) {
+        case '@': parse("NameRead");  break;
+        case '!': parse("NameWrite"); break;
+      }
+      EndCompound?.Invoke(this, ("NameExpression", Pos.Cursor));
+
+      void parse(string access) {
+        var start = Pos;
+        ++Pos.Cursor; // "@" or "!".
+        if (HasInput && (CurIsAnyOf("!+-.@") || IsMplLetter(CurChar))) {
+          ParseName();
+          Terminal?.Invoke(this, (access, start.Cursor, Pos.Cursor, start.Line, start.Column));
         }
-
-        break;
-        case '!':
-        ++end;
-        if (end < size && (input[end] == '+' || input[end] == '-' || input[end] == '@' || input[end] == '!' || input[end] == '.' || checkLetter(input[end]))) {
-          parse_Name();
-          if (isBuiltin) {
-            eventHandler.terminal("NameWrite", begin, begin + 1, currentLine);
-            eventHandler.terminal("Builtin", begin + 1, end, currentLine);
-            isBuiltin = false;
-          } else {
-            eventHandler.terminal("NameWrite", begin, end, currentLine);
-          }
-        } else {
-          eventHandler.terminal("Builtin", begin, end, currentLine); //it's just name, then it's builtin
-        }
-
-        break;
-      }
-
-      eventHandler.endNonterminal("NameExpression", end);
-      begin = end;
-    }
-
-    private void parse_LabelReset() {
-      eventHandler.startNonterminal("LabelReset", begin, currentLine);
-      int b = begin;
-      int l = currentLine;
-      eventHandler.terminal("Name", begin, end, currentLine);
-      begin = end;
-      end += 2;
-      eventHandler.terminal("':!'", begin, ++end, currentLine);
-      begin = end;
-      parse_Program(';');
-      if (end < size && input[end] == ';') {
-        eventHandler.terminal("';'", begin, ++end, currentLine);
-      } else {
-        throwException(b, l, "LabelReset", "Can't find ; in the end of a LabelReset");
-      }
-
-      eventHandler.endNonterminal("LabelReset", end);
-      begin = end;
-    }
-
-    private void parse_Label() {
-      eventHandler.startNonterminal("Label", begin, currentLine);
-      int b = begin;
-      int l = currentLine;
-      eventHandler.terminal("Name", begin, end, currentLine);
-      getName(begin, end); //get name for autocompletion list
-      begin = end;
-      eventHandler.terminal("':'", begin, ++end, currentLine);
-      begin = end;
-      parse_Program(';');
-      if (end < size && input[end] == ';') {
-        eventHandler.terminal("';'", begin, ++end, currentLine);
-      } else {
-        throwException(b, l, "Label", "Can't find ; in the end of a Label");
-      }
-
-      eventHandler.endNonterminal("Label", end);
-      begin = end;
-    }
-
-    private void parse_Object() {
-      eventHandler.startNonterminal("Object", begin, currentLine);
-      int b = begin;
-      int l = currentLine;
-      eventHandler.terminal("'{'", begin, ++end, currentLine);
-      begin = end;
-      parse_Program('}');
-      if (end < size && input[end] == '}') {
-        eventHandler.terminal("'}'", begin, ++end, currentLine);
-      } else {
-        throwException(b, l, "Object", "Can't find } in the end of an Object");
-      }
-
-      eventHandler.endNonterminal("Object", end);
-      begin = end;
-    }
-
-    private void parse_List() {
-      eventHandler.startNonterminal("List", begin, currentLine);
-      int b = begin;
-      int l = currentLine;
-      eventHandler.terminal("'('", begin, ++end, currentLine);
-      begin = end;
-      parse_Program(')');
-      if (end < size && input[end] == ')') {
-        eventHandler.terminal("')'", begin, ++end, currentLine);
-      } else {
-        throwException(b, l, "List", "Can't find ) in the end of a List");
-      }
-
-      eventHandler.endNonterminal("List", end);
-      begin = end;
-    }
-
-    private void parse_Code() {
-      eventHandler.startNonterminal("Code", begin, currentLine);
-      int b = begin;
-      int l = currentLine;
-      eventHandler.terminal("'['", begin, ++end, currentLine);
-      begin = end;
-      parse_Program(']');
-      if (end < size && input[end] == ']') {
-        eventHandler.terminal("']'", begin, ++end, currentLine);
-      } else {
-        throwException(b, l, "Code", "Can't find ] in the end of a Code");
-      }
-
-      eventHandler.endNonterminal("Code", end);
-      begin = end;
-    }
-
-    private void parseTk_Whitespaces() {
-      eventHandler.startNonterminal("Whitespaces", begin, currentLine);
-      char current = input[begin];
-      while (current == ' ' || current == '\n' || current == '\r' || current == '\t') {
-        if (current == '\n') {
-          begin = end;
-          ++end;
-          eventHandler.terminal("LF", begin, end, currentLine);
-          currentLine++;
-        } else if (current == '\t') {
-          ++end;
-        } else if (current == '\r') {
-          begin = end;
-          ++end;
-          if (input[end] != '\n') {
-            throwException(end, "Whitespaces", "CR endings are banned");
-            ++end;
-          } else {
-            ++end;
-            eventHandler.terminal("CRLF", begin, end, currentLine);
-            currentLine++;
-          }
-        } else if (current == ' ') {
-          ++end;
-        }
-
-        if (end == size) {
-          end = size;
-          break;
-        } else {
-          current = input[end];
+        else {
+          Terminal?.Invoke(this, ("Name", start.Cursor, Pos.Cursor, start.Line, start.Column));
         }
       }
-
-      begin = end;
-      eventHandler.endNonterminal("Whitespaces", end);
     }
 
-    private void parseTk_String() {
-      bool isOk = true;
-      if (input[end] == '"') {
-        ++end;
-        while (end < size && input[end] != '"') {
-          if (input[end] == '\\') {
-            if (end + 1 >= size || (checkUTF(input[end + 1]) && input[end + 1] != '\\' && input[end + 1] != '\"' && input[end + 1] != 'n' && input[end + 1] != 'r' && input[end + 1] != 't')) {
-              throwException(end, "String", "Unexpected symbol");
-              ++end;
-              isOk = false;
-            } else {
-              end += 2;
+    private void ParseString() {
+      if (CurChar == '"') {
+        var start = Pos;
+        Advance(false); // Opening of the string '"', also maybe skip new lines.
+
+        ParseStringBody();
+
+        if (AtEnd) {
+          Error(start.Cursor, "String", FormatExpected("A tail of the string with the string terminator '\"'", "The unterminated string"));
+        }
+        else {
+          ++Pos.Cursor; // Closing of the string '"'.
+        }
+        Terminal?.Invoke(this, ("String", start.Cursor, Pos.Cursor, start.Line, start.Column));
+      }
+      else {
+        var start = Pos;
+        ParseRawString();
+        // NOTE: We dubbed it a string, but not a raw-string, so the other extension's parts will not differentiate them.
+        Terminal?.Invoke(this, ("String", start.Cursor, Pos.Cursor, start.Line, start.Column));
+      }
+
+      void ParseStringBody() {
+        while (HasInput && CurChar != '"') {
+          if (CurChar == '\\') {
+            var start = Pos;
+            Advance(false);
+            if (Pos.Cursor == start.Cursor + 1) {
+              ParseStringEscapeSequenceTail();
             }
-          } else {
-            ++end;
-          }
-        }
-
-        ++end;
-      } else {
-        parse_recString();
-      }
-
-      if (isOk) {
-        eventHandler.terminal("String", begin, end, currentLine);
-      }
-
-      begin = end;
-    }
-
-    private void parse_recString() {
-      ++end;
-      while (end < size && input[end] != '�') {
-        if (input[end] == '�') {
-          parse_recString();
-        } else {
-          ++end;
-        }
-      }
-
-      ++end;
-    }
-
-    private void parse_Num() {
-      bool signed = false;
-      bool isOk = true;
-      if (end + 1 < size && input[end] == '0' && input[end + 1] == 'x') {
-        end += 2;
-        if (end < size && ((Char.IsDigit(input[end]) || (input[end] <= 'f' && input[end] >= 'a') || (input[end] <= 'F' && input[end] >= 'A')))) {
-          while (end < size && ((Char.IsDigit(input[end]) || (input[end] <= 'f' && input[end] >= 'a') || (input[end] <= 'F' && input[end] >= 'A')))) {
-            ++end;
-          }
-        } else {
-          throwException(end, "Number", "There is a hex number without a digits after \'0x\' ");
-          isOk = false;
-        }
-      } else if (input[end] == '+' || input[end] == '-') {
-        signed = true;
-        ++end;
-        if (input[end] == '0') {
-          ++end;
-        } else {
-          while (end < size && Char.IsDigit(input[end])) {
-            ++end;
-          }
-        }
-      } else {
-        if (input[end] == '0') {
-          ++end;
-        } else {
-          while (end < size && Char.IsDigit(input[end])) {
-            ++end;
-          }
-        }
-      }
-
-      if (isOk && end < size && (input[end] == '.' || input[end] == 'e' || input[end] == 'E')) {
-        parseTk_Real();
-      } else if (isOk && end < size && (input[end] == 'n' || input[end] == 'i')) {
-        parseTk_Number(signed);
-      } else if (isOk) {
-        eventHandler.terminal("Number", begin, end, currentLine);
-      }
-
-      begin = end;
-    }
-
-    private void parseTk_Number(bool signed) {
-      bool isOk = true;
-      if (signed) {
-        if (end < size && input[end] == 'n') {
-          throwException(begin, "Number", "n-numbers can't have sign");
-          isOk = false;
-        } else if (end < size && input[end] == 'i') {
-          ++end;
-          if (end < size) {
-            if (input[end] == '8' || input[end] == 'x') {
-              ++end;
-            } else if (end + 1 < size) {
-              if ((input[end] == '3' && input[end + 1] == '2') || (input[end] == '1' && input[end + 1] == '6') || (input[end] == '6' && input[end + 1] == '4')) {
-                end += 2;
-              } else {
-                throwException(end, "Number", "There is nothing like x, 8, 16, 32 or 64 after i");
-                isOk = false;
-              }
-            } else {
-              throwException(end, "Number", "There is nothing like x, 8, 16, 32 or 64 after i");
-              isOk = false;
+            else {
+              Error(start.Cursor + 1, "String", FormatExpected("A tail of the escape sequence", "The new line"));
             }
-          } else {
-            throwException(end, "Number", "There is nothing like x, 8, 16, 32 or 64 after i");
-            isOk = false;
           }
-        }
-      } else if (end < size && (input[end] == 'i' || input[end] == 'n')) {
-        ++end;
-        if (end < size) {
-          if (input[end] == '8' || input[end] == 'x') {
-            ++end;
-          } else if (end + 1 < size) {
-            if ((input[end] == '3' && input[end + 1] == '2') || (input[end] == '1' && input[end + 1] == '6') || (input[end] == '6' && input[end + 1] == '4')) {
-              end += 2;
-            } else {
-              throwException(end, "Number", "There is nothing like x, 8, 16, 32 or 64 after i or n");
-              isOk = false;
-            }
-          } else {
-            throwException(end, "Number", "There is nothing like x, 8, 16, 32 or 64 after i or n");
-            isOk = false;
+          else {
+            Advance(false);
           }
-        } else {
-          throwException(end, "Number", "There is nothing like x, 8, 16, 32 or 64 after i or n");
-          isOk = false;
         }
       }
 
-      if (isOk) {
-        eventHandler.terminal("Number", begin, end, currentLine);
-      }
-
-      begin = end;
-    }
-
-    private void parseTk_Real() {
-      bool isOk = true;
-      if (input[end] == '.') {
-        ++end;
-        if (end < size && Char.IsDigit(input[end])) {
-          while (end < size && input[end] != 'e' && input[end] != 'E' && Char.IsDigit(input[end])) {
-            ++end;
-          }
-        } else {
-          throwException(end, "Real", "There must be a digit after point");
-          isOk = false;
-        }
-
-        if (end < size && (input[end] == 'e' || input[end] == 'E')) {
-          ++end;
-          if (end < size && (input[end] == '+' || input[end] == '-')) {
-            ++end;
-            if (end < size && input[end] == '0') {
-              ++end;
-            } else if (end < size && Char.IsDigit(input[end])) {
-              while (end < size && Char.IsDigit(input[end])) {
-                ++end;
-              }
-            } else {
-              throwException(end, "Real", "There must be a digit after \'E\'");
-              isOk = false;
-            }
-          } else if (end < size && input[end] == '0') {
-            ++end;
-          } else if (end < size && Char.IsDigit(input[end])) {
-            while (end < size && Char.IsDigit(input[end])) {
-              ++end;
-            }
-          } else {
-            throwException(end, "Real", "There must be a digit after \'E\'");
-            isOk = false;
-          }
-        }
-      } else if (input[end] == 'e' || input[end] == 'E') {
-        ++end;
-        if (end < size && (input[end] == '+' || input[end] == '-')) {
-          ++end;
-          if (end < size && input[end] == '0') {
-            ++end;
-          } else if (end < size && Char.IsDigit(input[end])) {
-            while (end < size && Char.IsDigit(input[end])) {
-              ++end;
-            }
-          } else {
-            throwException(end, "Real", "There must be a digit after \'E\'");
-            isOk = false;
-          }
-        } else if (end < size && input[end] == '0') {
-          ++end;
-        } else if (end < size && Char.IsDigit(input[end])) {
-          while (end < size && Char.IsDigit(input[end])) {
-            ++end;
-          }
-        } else {
-          throwException(end, "Real", "There must be a digit after \'E\'");
-          isOk = false;
-        }
-      } else {
-        throwException(end, "Real", "There is an invalid character in the token");
-        isOk = false;
-      }
-
-      if (end < size && input[end] == 'r') {
-        ++end;
-        if (end + 1 < size && ((input[end] == '3' && input[end + 1] == '2') || (input[end] == '6' && input[end + 1] == '4'))) {
-          end += 2;
-        } else {
-          throwException(end, "Real", "There is nothing like 32 or 64 after r");
-          isOk = false;
-        }
-      }
-
-      if (isOk) {
-        eventHandler.terminal("Real", begin, end, currentLine);
-      }
-
-      begin = end;
-    }
-
-    private void parseTk_Comment() {
-      ++end;
-      int lastNonWS = end;
-      while (end < size && input[end] != '\n' && input[end] != '\r') {
-        if (input[end] == ' ' || input[end] == '\t') {
-          ++end;
-        } else {
-          ++end;
-          lastNonWS = end;
-        }
-      }
-
-      eventHandler.terminal("Comment", begin, lastNonWS, currentLine);
-      begin = end;
-    }
-
-    private void parse_Name() {
-      isBuiltin = false;
-      switch (input[end]) {
-        case '@':
-        isBuiltin = true;
-        ++end;
-        break;
-        case '!':
-        isBuiltin = true;
-        ++end;
-        break;
-        case '.':
-        ++end;
-        while (end < size && input[end] == '.') {
-          ++end;
-        }
-
-        break;
-        default:
-        parseTk_MemberName();
-        break;
-      }
-    }
-
-    private void parseTk_MemberName() {
-      string nameWord = "";
-      if (end < size && (input[end] == '+' || input[end] == '-')) {
-        nameWord += input[end];
-        ++end;
-        if (end < size && (checkLetter(input[end]) || input[end] == '+' || input[end] == '-')) {
-          nameWord += input[end];
-          ++end;
-          while (end < size && (checkLetter(input[end]) || Char.IsDigit(input[end]) || input[end] == '+' || input[end] == '-')) {
-            nameWord += input[end];
-            ++end;
-          }
-
-          if (Constants.MplBuiltins.Contains(nameWord)) {
-            isBuiltin = true;
-          }
-        } else {
-          if (Constants.MplBuiltins.Contains(nameWord)) {
-            isBuiltin = true;
-          }
-
+      void ParseStringEscapeSequenceTail() {
+        if (AtEnd) {
+          Error("String", FormatExpected("A body of the escape sequence", "The end of input"));
           return;
         }
-      } else if (end < size && checkLetter(input[end])) {
-        nameWord += input[end];
-        ++end;
-        while (end < size && (checkLetter(input[end]) || Char.IsDigit(input[end]) || input[end] == '+' || input[end] == '-')) {
-          nameWord += input[end];
-          ++end;
+
+        ReadOnlySpan<char> escapeTails = stackalloc char[] { '\"', '\\', 'n', 'r', 't' };
+        if (escapeTails.IndexOf(CurChar) >= 0 || IsUpperCaseHexDigit(CurChar)) {
+          Advance(false);
+        }
+        else {
+          Error("String", FormatExpected("One of '\"', '\\', 'n', 'r', 't', or upper case hexadecimal digit", "The escape sequence body which is invalid"));
+          Advance(false);
+        }
+      }
+
+      void ParseRawString() {
+        var start = Pos;
+        ++Pos.Cursor; // "«".
+        while (HasInput && CurChar != '»') {
+          if (CurChar == '«') {
+            ParseRawString();
+          }
+          else {
+            AdvanceAtCurrent(false);
+          }
         }
 
-        if (Constants.MplBuiltins.Contains(nameWord)) {
-          isBuiltin = true;
+        if (AtEnd) {
+          Error(start.Cursor, "RawString", FormatExpected("A tail of the raw string with the string terminator '»'", "The unterminated string"));
         }
-      } else {
-        throwException(end, "MemberName", "It must be MemberName here, but it's empty");
+        else {
+          ++Pos.Cursor; // "»".
+        }
       }
     }
 
-    private void parse_NameExpressionOrLableOrLableReset() {
-      parse_Name();
-      if (end + 1 < size && input[end] == ':' && input[end + 1] == '!') {
-        parse_LabelReset();
-      } else if (end < size && input[end] == ':') {
-        parse_Label();
-      } else {
-        eventHandler.startNonterminal("NameExpression", begin, currentLine);
-        if (isBuiltin) {
-          eventHandler.terminal("Builtin", begin, end, currentLine);
-        } else {
-          eventHandler.terminal("Name", begin, end, currentLine);
+    private void ParseNumber() {
+      var start  = Pos;
+      var signed = false;
+      var isOk   = true;
+      if (HasNext && CurPairIs('0', 'x')) {
+        Pos.Cursor += 2;
+        if (HasInput && IsHexDigit(CurChar)) {
+          Skip(a => IsHexDigit(a));
+        }
+        else {
+          Error("Number", "There is a hex number without a digits after \'0x\' ");
+          isOk = false;
+        }
+      }
+      else if (CurChar == '+' || CurChar == '-') {
+        signed = true;
+        ++Pos.Cursor;
+        if (CurChar == '0') {
+          ++Pos.Cursor;
+        }
+        else {
+          Skip(a => IsDigit(a));
+        }
+      }
+      else {
+        if (CurChar == '0') {
+          ++Pos.Cursor;
+        }
+        else {
+          Skip(a => IsDigit(a));
+        }
+      }
+
+      if (isOk && HasInput && CurIsAnyOf(".Ee")) {
+        ParseReal(start);
+      }
+      else if (isOk && HasInput && (CurChar == 'n' || CurChar == 'i')) {
+        ParseInteger(start, signed);
+      }
+      else if (isOk) {
+        Terminal?.Invoke(this, ("Number", start.Cursor, Pos.Cursor, start.Line, start.Column));
+      }
+    }
+
+    private void ParseInteger(PositionInfo start, bool signed) {
+      var isOk = true;
+      if (signed) {
+        if (HasInput && CurChar == 'n') {
+          Error(start.Cursor, "Number", "n-numbers can't have sign");
+          isOk = false;
+        }
+        else if (HasInput && CurChar == 'i') {
+          ParseSuffix("There is nothing like x, 8, 16, 32 or 64 after i");
+        }
+      }
+      else if (HasInput && (CurChar == 'i' || CurChar == 'n')) {
+        ParseSuffix("There is nothing like x, 8, 16, 32 or 64 after i or n");
+      }
+
+      if (isOk) {
+        Terminal?.Invoke(this, ("Number", start.Cursor, Pos.Cursor, start.Line, start.Column));
+      }
+
+      void ParseSuffix(string messageOnError) {
+        ++Pos.Cursor;
+        if (HasInput) {
+          if (CurChar == '8' || CurChar == 'x') {
+            ++Pos.Cursor;
+          }
+          else if (HasNext) {
+            if (CurPairIs('3', '2') || CurPairIs('1', '6') || CurPairIs('6', '4')) {
+              Pos.Cursor += 2;
+            }
+            else {
+              OutError("Number", messageOnError, out isOk);
+            }
+          }
+          else {
+            OutError("Number", messageOnError, out isOk);
+          }
+        }
+        else {
+          OutError("Number", messageOnError, out isOk);
+        }
+      }
+    }
+
+    private void ParseReal(PositionInfo start) {
+      var isOk = true;
+      if (CurChar == '.') {
+        ++Pos.Cursor;
+        if (HasInput && IsDigit(CurChar)) {
+          Skip(a => IsDigit(a));
+        }
+        else { // TODO: Refactoring.
+          // FIXME: `0.Message` - is it MPL-grammar violation?.
+
+          if (HasInput && IsMplLetter(CurChar)) {
+            var errStart = Pos.Cursor;
+            SkipPseudoName();
+            Error(errStart, Pos.Cursor, "Real", "There must be a digit after point");
+            isOk = false;
+
+            void SkipPseudoName() =>
+              Skip(a => IsDigit(a) || IsMplLetter(a) || CurIsAnyOf("!+-.@"));
+          }
+          else {
+            OutError("Real", "There must be a digit after point", out isOk);
+          }
         }
 
-        eventHandler.endNonterminal("NameExpression", end);
-        begin = end;
+        if (HasInput && (CurChar == 'e' || CurChar == 'E')) {
+          ParseExponent();
+        }
+      }
+      else if (CurChar == 'e' || CurChar == 'E') {
+        ParseExponent();
+      }
+      else {
+        OutError("Real", "There is an invalid character in the token", out isOk);
       }
 
-      isBuiltin = false;
-    }
+      if (HasInput && CurChar == 'r') {
+        ++Pos.Cursor;
+        if (HasNext && (CurPairIs('3', '2') || CurPairIs('6', '4'))) {
+          Pos.Cursor += 2;
+        }
+        else {
+          OutError("Real", "There is nothing like 32 or 64 after r", out isOk);
+        }
+      }
 
-    private bool checkUTF(char c) {
-      return !((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F'));
-    }
+      if (isOk) {
+        Terminal?.Invoke(this, ("Real", start.Cursor, Pos.Cursor, start.Line, start.Column));
+      }
 
-    private bool checkName(char c) {
-      return (checkLetter(c) || c == '.');
-    }
-
-    private bool checkLetter(char c) {
-      return (c != '+' && !Char.IsDigit(c) && c != ' ' && c != '.' && c != ';' && c != ':' && c != ',' && c != '!' && c != '@' && c != '{' && c != '}' && c != '(' && c != ')' && c != 0x002D && c != 0x0022 && c != 0x0023 && c != 0x005B && c != 0x005D && c != 0x0009 && c != 0x000A && c != 0x000D);
-    }
-
-    private void findNextWhitespace() {
-      while (end < size && input[end] != ' ' && input[end] != '\n' && input[end] != '\r') {
-        ++end;
+      void ParseExponent() {
+        ++Pos.Cursor;
+        if (HasInput && (CurChar == '+' || CurChar == '-')) {
+          ++Pos.Cursor;
+          if (HasInput && CurChar == '0') {
+            ++Pos.Cursor;
+          }
+          else if (HasInput && IsDigit(CurChar)) {
+            Skip(a => IsDigit(a));
+          }
+          else {
+            OutError("Real", "There must be a digit after \'E\'", out isOk);
+          }
+        }
+        else if (HasInput && CurChar == '0') {
+          ++Pos.Cursor;
+        }
+        else if (HasInput && IsDigit(CurChar)) {
+          Skip(a => IsDigit(a));
+        }
+        else {
+          OutError("Real", "There must be a digit after \'E\'", out isOk);
+        }
       }
     }
 
-    private void throwException(int position, int line, string token, string message) {
-      eventHandler.pushError(position, line, position - (input.Substring(0, position)).LastIndexOf('\n'), token, message);
+    private void OutError(string token, string message, out bool isOk) {
+      Error(token, message);
+      isOk = false;
     }
 
-    private void throwException(int position, string token, string message) {
-      eventHandler.pushError(position, currentLine, position - (input.Substring(0, position)).LastIndexOf('\n'), token, message);
+    private void ParseComment() {
+      var start = Pos;
+      ++Pos.Cursor; // "#".
+
+      var lastNonWS = Pos.Cursor; // FIXME: This is not a "last-non-white-space".
+      while (HasInput && CurChar != '\n' && CurChar != '\r') {
+        if (CurChar == ' ' || CurChar == '\t') {
+          ++Pos.Cursor;
+        }
+        else {
+          ++Pos.Cursor;
+          lastNonWS = Pos.Cursor;
+        }
+      }
+
+      Terminal?.Invoke(this, ("Comment", start.Cursor, lastNonWS, start.Line, start.Column));
     }
 
-    private void getName(int begin, int end) {
-      string name = input.Substring(begin, end - begin);
-      eventHandler.getName(name);
+    private void ParseMemberName() {
+      if (HasInput && (CurChar == '+' || CurChar == '-')) {
+        ++Pos.Cursor;
+        if (HasInput && (IsMplLetter(CurChar) || CurChar == '+' || CurChar == '-')) {
+          ++Pos.Cursor;
+          SkipLettersDigitsSigns();
+        }
+        else {
+          return;
+        }
+      }
+      else if (HasInput && IsMplLetter(CurChar)) {
+        ++Pos.Cursor;
+        SkipLettersDigitsSigns();
+      }
+      else {
+        Error("MemberName", "It must be MemberName here, but it's empty");
+      }
+
+      void SkipLettersDigitsSigns() =>
+        Skip(a => IsMplLetter(a) || IsDigit(a) || a == '+' || a == '-');
     }
 
+    private void ParseLabelOrNameExpression() {
+      var start = Pos;
+      ParseName();
+      if (HasInput && CurChar == ':') {
+        ParseLabel(start);
+      }
+      else {
+        StartCompound?.Invoke(this, ("NameExpression", start.Cursor, start.Line, start.Column));
+        Terminal?.Invoke(this, ("Name", start.Cursor, Pos.Cursor, start.Line, start.Column));
+        EndCompound?.Invoke(this, ("NameExpression", Pos.Cursor));
+      }
+    }
+
+    private void ParseName() {
+      switch (CurChar) {
+        case '@':
+        case '!':
+          ++Pos.Cursor;
+          break;
+        case '.':
+          ++Pos.Cursor;
+          Skip(a => a == '.');
+          break;
+
+        default:
+          ParseMemberName();
+          break;
+      }
+    }
+
+    private void Skip(Predicate<char> f) {
+      while (HasInput && f(CurChar)) {
+        ++Pos.Cursor;
+      }
+    }
+
+    private static bool IsUpperCaseHexDigit(char ch) => IsDigit(ch) || ch >= 'A' && ch <= 'F';
+
+    private static bool IsHexDigit(char ch) => IsUpperCaseHexDigit(ch) || ch >= 'a' && ch <= 'f';
+
+    private static bool IsMplLetter(char ch) => !IsDigit(ch) && "\t\n\r !\"#()+,-.:;@[]{}".IndexOf(ch) < 0;
+
+    private static bool IsDigit(char ch) => ch >= '0' && ch <= '9';
+
+    private void Error(int begin, int end, string token, string message) =>
+      PushError?.Invoke(this, new SyntaxError(begin, end, token, message));
+
+    private void Error(int position, string token, string message) =>
+      Error(position, position, token, message);
+
+    private void Error(string token, string message) =>
+      Error(Pos.Cursor, token, message);
   }
 }

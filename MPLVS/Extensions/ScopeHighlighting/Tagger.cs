@@ -1,147 +1,107 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using Microsoft.VisualStudio.Shell;
+using System.Linq;
+
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Tagging;
 
-namespace MPL.BraceMatching {
-  internal sealed class BraceMatchingTagger : ITagger<ITextMarkerTag> {
+using MPLVS.Core;
+using MPLVS.Core.ParseTree;
+using MPLVS.Extensions;
+using MPLVS.ParseTree;
+
+namespace MPLVS.ScopeHighlighting {
+  internal sealed class Tagger : StepByStepTagger<ITextMarkerTag> {
     private readonly ITextView textView;
-    private readonly Dictionary<char, char> bracePairs;
-    private readonly Dictionary<char, string> braceKind;
-    private readonly TextMarkerTag tag = new TextMarkerTag("MplBraceFound");
-    private SnapshotPoint prevPoint;
+    private static readonly TextMarkerTag tag = new TextMarkerTag("MplScope");
+    private Builder.Node last;
 
-    public BraceMatchingTagger(ITextView textView) {
-      bracePairs = new Dictionary<char, char> {
-        ['{'] = '}',
-        ['['] = ']',
-        ['('] = ')'
-      };
-
-      braceKind = new Dictionary<char, string> {
-        ['{'] = "Object",
-        ['}'] = "Object",
-        ['['] = "Code",
-        [']'] = "Code",
-        ['('] = "List",
-        [')'] = "List"
-      };
-
-      this.textView = textView;
+    public Tagger(ITextView view) {
+      this.textView = view;
 
       this.textView.Caret.PositionChanged += OnCaretPositionChanged;
+      this.textView.TextBuffer.Changed    += OnBufferChanged;
+
+      OnCaretPositionChanged(null, null);
     }
 
-    public event EventHandler<SnapshotSpanEventArgs> TagsChanged;
+    public override event EventHandler<SnapshotSpanEventArgs> TagsChanged;
 
-    public IEnumerable<ITagSpan<ITextMarkerTag>> GetTags(NormalizedSnapshotSpanCollection spans) {
-      ThreadHelper.ThrowIfNotOnUIThread();
-      if (spans[0].Snapshot != textView.TextBuffer.CurrentSnapshot) {
+    protected override IEnumerable<ITagSpan<ITextMarkerTag>> Tags(Span span) =>
+      AllTags().Where(a => a.OverlapsWith(span)).Select(b => {
+        var snapshot = new SnapshotSpan(textView.TextSnapshot, b.Start, b.End - b.Start);
+        return new TagSpan<ITextMarkerTag>(snapshot, tag);
+      });
+
+    private IEnumerable<Span> AllTags() {
+      if (last is null) {
         yield break;
       }
 
-      SnapshotPoint? caretPoint =
-        textView.Caret.Position.Point.GetPoint(textView.TextBuffer, textView.Caret.Position.Affinity);
+      var start = last.children.First();
+      var endOfTag = start.end + (start.IsName() ? 1 : 0); // If it is a label, then capture a colon too.
+      yield return Span.FromBounds(start.begin, endOfTag);
 
-      if (!caretPoint.HasValue || caretPoint.Value.Snapshot.Length == 0) {
-        yield break;
-      }
-
-      SnapshotPoint currPoint;
-
-      if (caretPoint.Value.Position == caretPoint.Value.Snapshot.Length && caretPoint.Value.Position != 0) {
-        currPoint = caretPoint.Value - 1;
-      } else {
-        currPoint = caretPoint.Value;
-      }
-
-      if (MplPackage.Options.SharpStyleBraceMatch) {
-        prevPoint = caretPoint.Value.Position != 0 ? caretPoint.Value - 1 : caretPoint.Value;
-      } else {
-        prevPoint = currPoint;
-      }
-
-      char currentCharacter = currPoint.GetChar();
-      char lastCharacter = prevPoint.GetChar();
-      SnapshotPoint matchedPoint;
-
-      if (bracePairs.ContainsKey(currentCharacter)) {
-        if (FindCloseChar(currPoint, braceKind[currentCharacter], out matchedPoint)) {
-          yield return new TagSpan<TextMarkerTag>(new SnapshotSpan(currPoint, 1), tag);
-          yield return new TagSpan<TextMarkerTag>(new SnapshotSpan(matchedPoint, 1), tag);
-        }
-      } else if (bracePairs.ContainsValue(lastCharacter)) {
-        if (FindOpenChar(prevPoint, braceKind[lastCharacter], out matchedPoint)) {
-          yield return new TagSpan<TextMarkerTag>(new SnapshotSpan(matchedPoint, 1), tag);
-          yield return new TagSpan<TextMarkerTag>(new SnapshotSpan(prevPoint, 1), tag);
-        }
+      // When the text has some syntax errors,
+      // then it is possible that the current scope will be w\o a closing symbol.
+      var end = last.children.Last();
+      if (end.IsScopeEnd()) {
+        yield return new Span(end.begin, 1);
       }
     }
 
-    private void OnCaretPositionChanged(object sender, CaretPositionChangedEventArgs e) {
-      TagsChanged?.Invoke(this,
-        new SnapshotSpanEventArgs(new SnapshotSpan(textView.TextBuffer.CurrentSnapshot, 0,
-          textView.TextBuffer.CurrentSnapshot.Length)));
-    }
+    private void OnBufferChanged(object sender, TextContentChangedEventArgs info) =>
+      OnCaretPositionChanged(null, null);
 
-    private bool FindCloseChar(SnapshotPoint start, string kind, out SnapshotPoint end) {
-      ParseTree.Builder.Node root = ParseTree.Tree.Root();
-      int startPos = start.Position;
-      int endPos = startPos;
-      bool haveFound = false;
+    private void OnCaretPositionChanged(object sender, CaretPositionChangedEventArgs info) {
+      var unnormalizedPoint =
+        textView.Caret.Position.Point
+        .GetPoint(textView.TextBuffer, textView.Caret.Position.Affinity);
 
-      void Traverse(ParseTree.Builder.Node node) {
-        if (node.children == null) {
-          return;
-        }
-
-        if (node.name == kind && node.begin == startPos && node.children.Exists(x => x.name == "']'" || x.name == "'}'" || x.name == "')'")) {
-          endPos = node.end - 1;
-          haveFound = true;
-        }
-
-        foreach (var child in node.children) {
-          if (!haveFound && child.begin <= startPos && child.end > startPos) {
-            Traverse(child);
-          }
-        }
+      if (!unnormalizedPoint.HasValue && this.last is null) {
+        return;
       }
 
-      Traverse(root);
-
-      end = new SnapshotPoint(start.Snapshot, endPos);
-      return haveFound;
-    }
-
-    private bool FindOpenChar(SnapshotPoint end, string kind, out SnapshotPoint start) {
-      ParseTree.Builder.Node root = ParseTree.Tree.Root();
-      int endPos = end.Position;
-      int startPos = endPos;
-      bool haveFound = false;
-
-      void Traverse(ParseTree.Builder.Node node) {
-        if (node.children == null) {
-          return;
-        }
-
-        if (node.name == kind && node.end - 1 == endPos) {
-          startPos = node.begin;
-          haveFound = true;
-        }
-
-        foreach (var child in node.children) {
-          if (!haveFound) {
-            Traverse(child);
-          }
-        }
+      if (!unnormalizedPoint.HasValue) {
+        Notify(null);
+        return;
       }
 
-      Traverse(root);
+      var point = Normalize(unnormalizedPoint);
 
-      start = new SnapshotPoint(end.Snapshot, startPos);
-      return haveFound;
+      var symbols =
+        this.textView.TextBuffer
+        .ObtainOrAttachTree().Root()
+        .AllAncestors(point.Position)
+        .Where(a => a.IsScope()); // Filter out trailing trash like a string\comment etc.
+
+      var current = symbols.LastOrDefault();
+
+      var caretOoutsideOfScope =
+        current is object                        // TODO: Explain what is going on here.
+        && unnormalizedPoint.Value > point       //
+        && current.children.Last().IsScopeEnd(); //
+
+      if (caretOoutsideOfScope) {
+        current = null;
+      }
+
+      if (!object.ReferenceEquals(last, current)) {
+        Notify(current);
+      }
     }
+
+    private void Notify(Builder.Node node) {
+      this.last = node;
+
+      var snapshot = new SnapshotSpan(textView.TextBuffer.CurrentSnapshot, 0, textView.TextBuffer.CurrentSnapshot.Length);
+      TagsChanged?.Invoke(this, new SnapshotSpanEventArgs(snapshot));
+    }
+
+    private static SnapshotPoint Normalize(SnapshotPoint? point) =>
+      point.Value == point.Value.Snapshot.Length && point.Value != 0
+      ? point.Value - 1
+      : point.Value;
   }
 }

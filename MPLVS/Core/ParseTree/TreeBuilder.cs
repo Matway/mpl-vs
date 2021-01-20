@@ -1,61 +1,66 @@
-﻿using System.Collections.Generic;
-using System.Linq;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
-namespace MPL.ParseTree {
-  internal class Builder : MPLParser.EventHandler {
+namespace MPLVS.ParseTree {
+  public class Builder {
     public class Node {
       public int begin;
       public int end;
       public int line;
+      public int column;
       public string name;
       public List<Node> children;
     }
 
     public string source;
     private readonly Stack<Node> nodes;
-    protected MPLParser parser;
-    public Stack<MPLParser.ParseException> errors;
-    public List<string> names;
+    internal Parser parser;
+    public Stack<Parser.SyntaxError> errors;
 
     public Builder() {
-      parser = new MPLParser();
-      nodes = new Stack<Node>();
-      errors = new Stack<MPLParser.ParseException>();
-      names = new List<string>();
+      parser = new Parser();
+      nodes  = new Stack<Node>();
+      errors = new Stack<Parser.SyntaxError>();
+
+      parser.Reset         += Reset;
+      parser.EndCompound   += EndCompound;
+      parser.StartCompound += StartCompound;
+      parser.Terminal      += Terminal;
+      parser.PushError     += PushError;
     }
 
-    public Node getRoot(string source, out bool parsed) {
+    public Node GetRoot(string source, out bool parsed) {
       nodes.Clear();
       errors.Clear();
-      names.Clear();
 
-      this.source = source;
+      this.source = source ?? throw new ArgumentNullException(nameof(source));
       nodes.Push(new Node {
-        begin = 0,
-        end = source.Length,
-        line = 0,
-        name = "Program",
+        begin    = 0,
+        end      = source.Length,
+        line     = 0,
+        column   = 0,
+        name     = "Program",
         children = new List<Node>()
       });
 
-      parser.initialize(source, this);
-      parser.parse_ProgramWithEOF();
+      parser.Initialize(source);
+      parser.ParseProgramWithEOF();
 
       parsed = errors.Count == 0;
 
       return nodes.Peek();
     }
 
-    // TODO: Why the argument is ignored?
-    public void reset(string s) {
+    public void Reset(object o, EventArgs e) {
       nodes.Clear();
       errors.Clear();
       nodes.Push(new Node {
-        begin = 0,
-        end = source.Length,
-        line = 0,
-        name = "Program",
+        begin    = 0,
+        end      = source.Length,
+        line     = 0,
+        column   = 0,
+        name     = "Program",
         children = new List<Node>()
       });
     }
@@ -64,81 +69,57 @@ namespace MPL.ParseTree {
       nodes.Peek().children.Add(n);
     }
 
-    public void startNonterminal(string name, int begin, int line) {
-      switch (name) {
-        case "Code":
-        case "List":
-        case "Object":
-        case "Label": break;
-        default: return;
+    public void StartCompound(object obj, (string name, int begin, int line, int column) startInfo) {
+      if (!IsBlock(startInfo.name)) {
+        return;
       }
 
       var node = new Node {
-        begin = begin,
-        end = begin,
-        name = name,
-        line = line,
+        begin    = startInfo.begin,
+        end      = startInfo.begin,
+        name     = startInfo.name,
+        line     = startInfo.line,
+        column   = startInfo.column,
         children = new List<Node>()
       };
 
-      if (nodes.Any()) AddChild(node);
+      if (nodes.Any()) {
+        AddChild(node);
+      }
       nodes.Push(node);
     }
 
-    public void endNonterminal(string name, int end) {
-      switch (name) {
-        case "Code":
-        case "List":
-        case "Object":
-        case "Label": break;
-        default: return;
+    public void EndCompound(object obj, (string name, int end) endInfo) {
+      if (!IsBlock(endInfo.name)) {
+        return;
       }
 
-      if (nodes.Count > 1) nodes.Peek().end = end;
+      if (nodes.Count > 1) {
+        nodes.Peek().end = endInfo.end;
+      }
       nodes.Pop();
     }
 
-    public void terminal(string name, int begin, int end, int line) {
+    public void Terminal(object obj, (string name, int begin, int end, int line, int column) terminalInfo) {
       AddChild(new Node {
-        begin = begin,
-        end = end,
-        name = name,
-        line = line
+        begin  = terminalInfo.begin,
+        end    = terminalInfo.end,
+        line   = terminalInfo.line,
+        column = terminalInfo.column,
+        name   = terminalInfo.name
       });
     }
 
-    public void pushError(int p, int l, int c, string t, string m) {
-      errors.Push(new MPLParser.ParseException(p, l, c, t, m));
-    }
+    public void PushError(object obj, Parser.SyntaxError error) =>
+      errors.Push(error);
 
-    public void getName(string name) {
-      if (!names.Contains(name)) {
-        names.Add(name);
-      }
-    }
+    public static bool IsBlock(string text) => starts.Contains(text);
 
-    public void whitespace(int begin, int end) {
-      //throw new NotImplementedException();
-    }
-  }
-
-  // FIXME: Static class with mutable state.
-  internal static class Tree {
-    private static readonly Builder builder = new Builder();
-    private static Builder.Node root = new Builder.Node();
-    public static List<string> nameList = new List<string>();
-
-    public static void Parse (string src, out bool parsed) {
-      root = builder.getRoot(src, out parsed);
-      nameList = builder.names;
-    }
-
-    public static Builder.Node Root() {
-      return root;
-    }
-
-    public static Stack<MPLParser.ParseException> GetErrorStack() {
-      return builder.errors;
-    }
+    private static readonly string[] starts = new string[] {
+      "Object",
+      "Code",
+      "List",
+      "Label"
+    };
   }
 }

@@ -1,24 +1,21 @@
-﻿using System;
-using System.Linq;
+using System;
 using System.Collections.Generic;
+using System.Linq;
+
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Tagging;
 
-namespace MPL.BraceFolding {
-  internal sealed class OutliningTagger : ITagger<IOutliningRegionTag> {
-    private readonly string ellipsis = " ... ";
-    private readonly Dictionary<char, char> bracePairs;
-    private ITextBuffer buffer;
+using MPLVS.Core;
+using MPLVS.Core.ParseTree;
+using MPLVS.Extensions;
+
+namespace MPLVS.Folding {
+  internal sealed class Tagger : StepByStepTagger<IOutliningRegionTag> {
+    private readonly ITextBuffer buffer;
     private ITextSnapshot snapshot;
     private List<Region> regions;
 
-    public OutliningTagger(ITextBuffer buf) {
-      bracePairs = new Dictionary<char, char> {
-        ['{'] = '}',
-        ['['] = ']',
-        ['('] = ')'
-      };
-
+    public Tagger(ITextBuffer buf) {
       buffer = buf;
       snapshot = buffer.CurrentSnapshot;
       regions = new List<Region>();
@@ -26,82 +23,72 @@ namespace MPL.BraceFolding {
       buffer.Changed += BufferChanged;
     }
 
-    public event EventHandler<SnapshotSpanEventArgs> TagsChanged;
+    public override event EventHandler<SnapshotSpanEventArgs> TagsChanged;
 
-    public IEnumerable<ITagSpan<IOutliningRegionTag>> GetTags(NormalizedSnapshotSpanCollection spans) {
-      if (spans.Count == 0) {
-        yield break;
-      }
+    protected override IEnumerable<ITagSpan<IOutliningRegionTag>> Tags(Span span) {
+      var currentRegions  = regions;
+      var currentSnapshot = snapshot;
+      var start           = snapshot.GetLineNumberFromPosition(span.Start);
+      var end             = snapshot.GetLineNumberFromPosition(span.End);
+      var window          = Span.FromBounds(start, end);
 
-      List<Region> currentRegions = regions;
-      ITextSnapshot currentSnapshot = snapshot;
-      SnapshotSpan entire = new SnapshotSpan(spans[0].Start, spans[spans.Count - 1].End).TranslateTo(currentSnapshot, SpanTrackingMode.EdgeExclusive);
-      int startLineNumber = entire.Start.GetContainingLine().LineNumber;
-      int endLineNumber = entire.End.GetContainingLine().LineNumber;
-      foreach (var region in currentRegions) {
-        if (region.StartLine <= endLineNumber && region.EndLine >= startLineNumber) {
-          var startPosition = new SnapshotPoint(snapshot, region.StartOffset);
-          var endPosition = new SnapshotPoint(snapshot, region.EndOffset + 1);
-          yield return new TagSpan<IOutliningRegionTag>(
-            new SnapshotSpan(startPosition, endPosition),
-            new OutliningRegionTag(false, false, region.Type + ellipsis + bracePairs[region.Type], ""));
-        }
-      }
+      return regions.Where(a => Span.FromBounds(a.startLine, a.endLine).IntersectsWith(window)).Select(b => {
+        var snapshot = new SnapshotSpan(this.snapshot, b.startOffset + 1, b.endOffset - b.startOffset - 1);
+        return new TagSpan<IOutliningRegionTag>(snapshot, b.ToOutliningTag(snapshot));
+      });
     }
 
-    private class Region {
-      public int StartLine { get; set; }
-      public int EndLine { get; set; }
-      public int StartOffset { get; set; }
-      public int EndOffset { get; set; }
-      public int Level { get; set; }
-      public char Type { get; set; }
+    internal struct Region {
+      public int startLine;
+      public int endLine;
+      public int startOffset;
+      public int endOffset;
+      public int level;
+      public char type;
     }
 
-    private void BufferChanged(object sender, TextContentChangedEventArgs e) {
-      if (e.After != buffer.CurrentSnapshot)
+    private void BufferChanged(object sender, TextContentChangedEventArgs info) {
+      if (info.After != buffer.CurrentSnapshot) {
         return;
+      }
       ReParse();
     }
 
     private void ReParse() {
-      ParseTree.Builder.Node root = ParseTree.Tree.Root();
-      ITextSnapshot newSnapshot = buffer.CurrentSnapshot;
-      List<Region> newRegions = new List<Region>();
-      Stack<char> brackets = new Stack<char>();
-      Stack<int> offsets = new Stack<int>();
-      int level = 0;
-
-      //string text = newSnapshot.GetText();
+      var root        = buffer.ObtainOrAttachTree().Root();
+      var newSnapshot = buffer.CurrentSnapshot;
+      var newRegions  = new List<Region>();
+      var brackets    = new Stack<char>();
+      var offsets     = new Stack<int>();
+      var level       = 0;
 
       void Traverse(ParseTree.Builder.Node node) {
-
-        if (node.name == "'['" || node.name == "'{'" || node.name == "'('") {
+        if (node.IsScopeStart()) {
           brackets.Push(node.name[1]);
           offsets.Push(node.begin);
           ++level;
         }
 
-        if (brackets.Count != 0 && node.name[1] == bracePairs[brackets.Peek()]) {
-          int beginLine = newSnapshot.GetLineFromPosition(offsets.Peek()).LineNumber;
-          int endLine = newSnapshot.GetLineFromPosition(node.begin).LineNumber;
+        if (brackets.Any() && node.name[1] == Core.ParseTree.Utils.Braces[brackets.Peek()]) {
+          var beginLine = newSnapshot.GetLineFromPosition(offsets.Peek()).LineNumber;
+          var endLine   = newSnapshot.GetLineFromPosition(node.begin).LineNumber;
           if (beginLine != endLine) {
-            if (newRegions.Count != 0 && newRegions.Last().StartOffset == offsets.Peek() + 1 && newRegions.Last().EndOffset == node.begin - 1) {
-              newRegions.Last().Level = level;
-              newRegions.Last().StartLine = beginLine;
-              newRegions.Last().EndLine = endLine;
-              newRegions.Last().StartOffset = offsets.Peek();
-              newRegions.Last().EndOffset = node.begin;
-              newRegions.Last().Type = brackets.Peek();
-            } else {
-              newRegions.Add(new Region() {
-                Level = level,
-                StartLine = beginLine,
-                EndLine = endLine,
-                StartOffset = offsets.Peek(),
-                EndOffset = node.begin,
-                Type = brackets.Peek()
-              });
+            var region = new Region() {
+              level       = level,
+              startLine   = beginLine,
+              endLine     = endLine,
+              startOffset = offsets.Peek(),
+              endOffset   = node.begin,
+              type        = brackets.Peek()
+            };
+
+            if (newRegions.Any()
+                && newRegions.Last().startOffset == offsets.Peek() + 1
+                && newRegions.Last().endOffset == node.begin - 1) {
+              newRegions[newRegions.Count - 1] = region;
+            }
+            else {
+              newRegions.Add(region);
             }
           }
 
@@ -121,30 +108,29 @@ namespace MPL.BraceFolding {
 
       Traverse(root);
 
-      List<Span> oldSpans = new List<Span>(this.regions.Select(r => AsSnapshotSpan(r, snapshot)
-          .TranslateTo(newSnapshot, SpanTrackingMode.EdgeExclusive).Span));
-      List<Span> newSpans = new List<Span>(newRegions.Select(r => AsSnapshotSpan(r, newSnapshot).Span));
+      var oldSpans = this.regions.Select(a => AsSnapshotSpan(a, snapshot).TranslateTo(newSnapshot, SpanTrackingMode.EdgeExclusive).Span);
+      var newSpans = new List<Span>(newRegions.Select(a => AsSnapshotSpan(a, newSnapshot).Span));
 
-      NormalizedSpanCollection oldSpanCollection = new NormalizedSpanCollection(oldSpans);
-      NormalizedSpanCollection newSpanCollection = new NormalizedSpanCollection(newSpans);
+      var oldSpanCollection = new NormalizedSpanCollection(oldSpans);
+      var newSpanCollection = new NormalizedSpanCollection(newSpans);
 
-      NormalizedSpanCollection removed = NormalizedSpanCollection.Difference(oldSpanCollection, newSpanCollection);
+      var removed = NormalizedSpanCollection.Difference(oldSpanCollection, newSpanCollection);
 
-      int changeStart = int.MaxValue;
-      int changeEnd = -1;
+      var changeStart = int.MaxValue;
+      var changeEnd   = int.MinValue;
 
-      if (removed.Count > 0) {
+      if (removed.Any()) {
         changeStart = removed[0].Start;
-        changeEnd = removed[removed.Count - 1].End;
+        changeEnd   = removed[removed.Count - 1].End;
       }
 
-      if (newSpans.Count > 0) {
+      if (newSpans.Any()) {
         changeStart = Math.Min(changeStart, newSpans[0].Start);
-        changeEnd = Math.Max(changeEnd, newSpans[newSpans.Count - 1].End);
+        changeEnd   = Math.Max(changeEnd, newSpans[newSpans.Count - 1].End);
       }
 
       snapshot = newSnapshot;
-      regions = newRegions;
+      regions  = newRegions;
 
       if (changeStart <= changeEnd) {
         TagsChanged?.Invoke(this, new SnapshotSpanEventArgs(new SnapshotSpan(snapshot, Span.FromBounds(changeStart, changeEnd))));
@@ -152,8 +138,8 @@ namespace MPL.BraceFolding {
     }
 
     private static SnapshotSpan AsSnapshotSpan(Region region, ITextSnapshot snapshot) {
-      var startPosition = new SnapshotPoint(snapshot, region.StartOffset);
-      var endPosition = new SnapshotPoint(snapshot, region.EndOffset + 1);
+      var startPosition = new SnapshotPoint(snapshot, region.startOffset);
+      var endPosition = new SnapshotPoint(snapshot, region.endOffset + 1);
       return new SnapshotSpan(startPosition, endPosition);
     }
   }

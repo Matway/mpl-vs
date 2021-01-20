@@ -1,16 +1,20 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
+
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Editor.OptionsExtensionMethods;
 using Microsoft.VisualStudio.TextManager.Interop;
-using MPL.ParseTree;
 
-namespace MPL.Commands {
-  internal class FormatDocumentHandler : VSCommandTarget<VSConstants.VSStd2KCmdID> {
+using MPLVS.Core;
+using MPLVS.Core.ParseTree;
+using MPLVS.ParseTree;
+
+namespace MPLVS.Commands {
+  internal class FormatDocument : VSCommandTarget<VSConstants.VSStd2KCmdID> {
     private SnapshotPoint? caretPoint;
     private string lineEnding = "\n";          //LF('\n') for UNIX or CRLF('\r''\n') for WINDOWS
     private bool leaveAsIs;
@@ -26,7 +30,7 @@ namespace MPL.Commands {
     private Stack<Builder.Node> currentLevelBrackets;
     private bool wasPoped;
 
-    public FormatDocumentHandler(IVsTextView vsTextView, IWpfTextView textView) : base(vsTextView, textView) { }
+    public FormatDocument(IVsTextView vsTextView, IWpfTextView textView) : base(vsTextView, textView) { }
 
     protected override IEnumerable<VSConstants.VSStd2KCmdID> SupportedCommands() {
       yield return VSConstants.VSStd2KCmdID.FORMATDOCUMENT;
@@ -42,24 +46,25 @@ namespace MPL.Commands {
       wasPoped = false;
       switch (MplPackage.Options.LineEndings) {
         case Options.LineEnding.Unix:
-        leaveAsIs = false;
-        lineEnding = "\n";
-        break;
+          leaveAsIs  = false;
+          lineEnding = "\n";
+          break;
         case Options.LineEnding.Windows:
-        leaveAsIs = false;
-        lineEnding = "\r\n";
-        break;
+          leaveAsIs  = false;
+          lineEnding = "\r\n";
+          break;
         case Options.LineEnding.Document:
-        leaveAsIs = true;
-        break;
+          leaveAsIs = true;
+          break;
       }
 
       if (TextView.Options.IsConvertTabsToSpacesEnabled()) {
         indentationCharacter = ' ';
-        indentationSize = TextView.Options.GetIndentSize();
-      } else {
+        indentationSize      = TextView.Options.GetIndentSize();
+      }
+      else {
         indentationCharacter = '\t';
-        indentationSize = 1;
+        indentationSize      = 1;
       }
 
       selectionBegin = 0;
@@ -68,18 +73,19 @@ namespace MPL.Commands {
       caretPoint = TextView.Caret.Position.Point.GetPoint(TextView.TextBuffer, TextView.Caret.Position.Affinity);
       switch (command) {
         case VSConstants.VSStd2KCmdID.FORMATDOCUMENT:
-        break;
+          break;
         case VSConstants.VSStd2KCmdID.FORMATSELECTION:
-        if (!TextView.Selection.IsEmpty && caretPoint != null) {
-          selectionBegin = TextView.Selection.Start.Position.Position;
-          selectionEnd = TextView.Selection.End.Position.Position;
-        } else if (TextView.Selection.IsEmpty && caretPoint != null) {
-          var line = TextView.TextBuffer.CurrentSnapshot.GetLineFromPosition(caretPoint.Value.Position);
-          selectionBegin = line.Start.Position;
-          selectionEnd = line.End.Position;
-        }
+          if (!TextView.Selection.IsEmpty && caretPoint != null) {
+            selectionBegin = TextView.Selection.Start.Position.Position;
+            selectionEnd   = TextView.Selection.End.Position.Position;
+          }
+          else if (TextView.Selection.IsEmpty && caretPoint != null) {
+            var line       = TextView.TextBuffer.CurrentSnapshot.GetLineFromPosition(caretPoint.Value.Position);
+            selectionBegin = line.Start.Position;
+            selectionEnd   = line.End.Position;
+          }
 
-        break;
+          break;
       }
 
       GetFormattedProgram();
@@ -102,38 +108,15 @@ namespace MPL.Commands {
       }
     }
 
-    private int GetLine(int position) {
-      string s = rawSource.Substring(0, position);
-      int sum = 0, lf = 0, cr = 0, crlf = 0;
-      for (int i = 0; i < s.Length; i++) {
-        if (s[i] == '\n') {
-          lf++;
-        }
-
-        if (s[i] == '\r') {
-          cr++;
-          if (i != s.Length - 1) {
-            if (s[i + 1] == '\n') {
-              crlf++;
-              lf++;
-              i++;
-            }
-          }
-        }
-      }
-
-      sum = lf + cr - crlf;
-      return sum;
-    }
-
     private void AddIndentation(Builder.Node currentToken) {
       if (lastToken.end <= selectionEnd && currentToken.begin >= selectionBegin && (lastToken.name == "CRLF" || lastToken.name == "LF" || isFirstToken)) {
-        var beginLine = TextView.TextBuffer.CurrentSnapshot.GetLineFromPosition(selectionBegin);
+        var beginLine       = TextView.TextBuffer.CurrentSnapshot.GetLineFromPosition(selectionBegin);
         var changeSpanBegin = Math.Max(lastToken.end, beginLine.Start.Position);
-        var endLine = TextView.TextBuffer.CurrentSnapshot.GetLineFromPosition(selectionEnd - 1);
-        var changeSpanEnd = Math.Min(currentToken.begin, endLine.End.Position);
-        string oldDelimeter = rawSource.Substring(changeSpanBegin, Math.Abs(changeSpanEnd - changeSpanBegin));
-        var newDelimeter = new string(indentationCharacter, bracketsStack.Count * indentationSize);
+        var endLine         = TextView.TextBuffer.CurrentSnapshot.GetLineFromPosition(selectionEnd - 1);
+        var changeSpanEnd   = Math.Min(currentToken.begin, endLine.End.Position);
+        var oldDelimeter    = rawSource.Substring(changeSpanBegin, Math.Abs(changeSpanEnd - changeSpanBegin));
+        var newDelimeter    = new string(indentationCharacter, bracketsStack.Count * indentationSize);
+
         if (newDelimeter != oldDelimeter) {
           EditInsert(changeSpanBegin, oldDelimeter, newDelimeter);
         }
@@ -143,84 +126,92 @@ namespace MPL.Commands {
     private void AddDelimeter(Builder.Node currentToken) {
       switch (currentToken.name) {
         case "EOF":
-        if (lastToken.name != "CRLF" && lastToken.name != "LF") {
-          if (rawSource.Substring(lastToken.end) != lineEnding && currentToken.end == selectionEnd) {
-            edit.Delete(lastToken.end, rawSource.Length - lastToken.end);
-            edit.Insert(lastToken.end, lineEnding);
+          if (lastToken.name != "CRLF" && lastToken.name != "LF") {
+            if (rawSource.Substring(lastToken.end) != lineEnding && currentToken.end == selectionEnd) {
+              edit.Delete(lastToken.end, rawSource.Length - lastToken.end);
+              edit.Insert(lastToken.end, lineEnding);
+            }
           }
-        } else {
-          if (rawSource.Substring(lastToken.end) != lineEnding && currentToken.end == selectionEnd) {
-            edit.Delete(lastToken.end, rawSource.Length - lastToken.end);
+          else {
+            if (rawSource.Substring(lastToken.end) != lineEnding && currentToken.end == selectionEnd) {
+              edit.Delete(lastToken.end, rawSource.Length - lastToken.end);
+            }
           }
-        }
 
-        return;
+          return;
         case "']'":
         case "'}'":
         case "')'":
         case "';'":
-        if (currentLevelBrackets.Count == 0 && bracketsStack.Count > 0 && bracketsStack.Peek().Count != 0) {
-          if (currentToken.line == bracketsStack.Peek().Peek().line) {
-            bracketsStack.Peek().Pop();
-            if (wasPoped) {
-              currentLevelBrackets = bracketsStack.Pop();
-              wasPoped = false;
-            } else if (bracketsStack.Peek().Count == 0) {
-              bracketsStack.Pop();
+          if (currentLevelBrackets.Count == 0 && bracketsStack.Count > 0 && bracketsStack.Peek().Count != 0) {
+            if (currentToken.line == bracketsStack.Peek().Peek().line) {
+              bracketsStack.Peek().Pop();
+              if (wasPoped) {
+                currentLevelBrackets = bracketsStack.Pop();
+                wasPoped             = false;
+              }
+              else if (bracketsStack.Peek().Count == 0) {
+                bracketsStack.Pop();
+              }
             }
-          } else {
-            currentLevelBrackets = bracketsStack.Pop();
+            else {
+              currentLevelBrackets = bracketsStack.Pop();
+              currentLevelBrackets.Pop();
+            }
+          }
+          else if (currentLevelBrackets.Count > 0) {
             currentLevelBrackets.Pop();
           }
-        } else if (currentLevelBrackets.Count > 0) {
-          currentLevelBrackets.Pop();
-        } else if (bracketsStack.Count > 0 && bracketsStack.Peek().Count == 0) {
-          bracketsStack.Pop();
-        }
+          else if (bracketsStack.Count > 0 && bracketsStack.Peek().Count == 0) {
+            bracketsStack.Pop();
+          }
 
-        AddIndentation(currentToken);
-        break;
+          AddIndentation(currentToken);
+          break;
         case "CRLF":
-        if (currentToken.end <= selectionEnd && currentToken.end >= selectionBegin) {
-          if (lastToken.end != currentToken.begin) {
-            edit.Delete(lastToken.end, currentToken.begin - lastToken.end);
+          if (currentToken.end <= selectionEnd && currentToken.end >= selectionBegin) {
+            if (lastToken.end != currentToken.begin) {
+              edit.Delete(lastToken.end, currentToken.begin - lastToken.end);
+            }
+
+            if (lineEnding != "\r\n" && !leaveAsIs) {
+              EditInsert(currentToken.begin, "\r\n", lineEnding);
+            }
           }
 
-          if (lineEnding != "\r\n" && !leaveAsIs) {
-            EditInsert(currentToken.begin, "\r\n", lineEnding);
-          }
-        }
-
-        break;
+          break;
         case "LF":
-        if (currentToken.end <= selectionEnd && currentToken.end >= selectionBegin) {
-          if (lastToken.end != currentToken.begin) {
-            edit.Delete(lastToken.end, currentToken.begin - lastToken.end);
+          if (currentToken.end <= selectionEnd && currentToken.end >= selectionBegin) {
+            if (lastToken.end != currentToken.begin) {
+              edit.Delete(lastToken.end, currentToken.begin - lastToken.end);
+            }
+
+            if (lineEnding != "\n" && !leaveAsIs) {
+              EditInsert(currentToken.begin, "\n", lineEnding);
+            }
           }
 
-          if (lineEnding != "\n" && !leaveAsIs) {
-            EditInsert(currentToken.begin, "\n", lineEnding);
-          }
-        }
-
-        break;
+          break;
         default:
-        AddIndentation(currentToken);
-        break;
+          AddIndentation(currentToken);
+          break;
       }
 
-      if (currentToken.name == "'['" || currentToken.name == "'{'" || currentToken.name == "'('" || currentToken.name == "':'") {
+      if (currentToken.IsScopeStart()) {
         if (bracketsStack.Count == 0 && currentLevelBrackets.Count == 0) {
           bracketsStack.Push(new Stack<Builder.Node>());
           bracketsStack.Peek().Push(currentToken);
-        } else if (bracketsStack.Count != 0 && bracketsStack.Peek().Peek().line == currentToken.line) {
+        }
+        else if (bracketsStack.Count != 0 && bracketsStack.Peek().Peek().line == currentToken.line) {
           bracketsStack.Peek().Push(currentToken);
-        } else if (currentLevelBrackets.Count != 0) {
+        }
+        else if (currentLevelBrackets.Count != 0) {
           bracketsStack.Push(new Stack<Builder.Node>(currentLevelBrackets));
           currentLevelBrackets.Clear();
           bracketsStack.Peek().Push(currentToken);
           wasPoped = true;
-        } else {
+        }
+        else {
           bracketsStack.Push(new Stack<Builder.Node>());
           bracketsStack.Peek().Push(currentToken);
         }
@@ -240,12 +231,12 @@ namespace MPL.Commands {
 
     private void GetFormattedProgram() {
       isFirstToken = true;
-      ParseTree.Tree.Parse(rawSource, out bool parsed);
-      var root = ParseTree.Tree.Root();
+      var root = TextView.TextBuffer.ObtainOrAttachTree().Root();
       if (root.name == "Program") {
         TraverseEdit(root);
         valid = true;
-      } else {
+      }
+      else {
         valid = true;
       }
     }
