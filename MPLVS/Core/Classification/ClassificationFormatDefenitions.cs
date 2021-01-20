@@ -1,12 +1,14 @@
-﻿using System.ComponentModel.Composition;
-using System.Windows.Media;
+using System.ComponentModel.Composition;
+
+using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Utilities;
-using Microsoft.VisualStudio.Shell;
 
-namespace MPL.Classification {
-
-  #region Format definition
+namespace MPLVS.Classification {
+  internal static class Utils {
+    public static string MplClass(this string className) =>
+      " MPL - " + className;
+  }
 
   [Export(typeof(EditorFormatDefinition))]
   [ClassificationType(ClassificationTypeNames = "MplContent")]
@@ -16,16 +18,9 @@ namespace MPL.Classification {
   internal sealed class MplContentClassificationFormat : ClassificationFormatDefinition {
     public MplContentClassificationFormat() {
       ThreadHelper.ThrowIfNotOnUIThread();
-      this.DisplayName = "MPL - Plain text";
-      if (MplPackage.Options.SolarizedTheme) {
-        this.ForegroundColor = MplPackage.MplContentColor;
-      }
+      this.DisplayName = "Plain text".MplClass();
     }
   }
-
-  #endregion
-
-  #region Format definition
 
   [Export(typeof(EditorFormatDefinition))]
   [ClassificationType(ClassificationTypeNames = "MplBuiltin")]
@@ -34,127 +29,85 @@ namespace MPL.Classification {
   [Order(Before = Priority.Default)]
   internal sealed class MplBuiltinClassificationFormat : ClassificationFormatDefinition {
     public MplBuiltinClassificationFormat() {
-      this.DisplayName = "MPL - Builtin functions";
-      this.ForegroundColor = Color.FromRgb(108, 113, 196); // violet
+      this.DisplayName = "Built-ins".MplClass();
     }
   }
 
-  #endregion
-
-  #region Format definition
-
   [Export(typeof(EditorFormatDefinition))]
   [ClassificationType(ClassificationTypeNames = "MplComment")]
-  [Name("CommentClassificationFormat")]
+  [Name("MplComment")]
   [UserVisible(true)]
   [Order(Before = Priority.Default)]
   internal sealed class CommentClassificationFormat : ClassificationFormatDefinition {
     public CommentClassificationFormat() {
-      this.DisplayName = "MPL - Comments";
-      this.ForegroundColor = Color.FromRgb(211, 54, 130); //magenta(purple)
+      this.DisplayName = "Comments".MplClass();
     }
   }
 
-  #endregion
-
-  #region Format definition
-
   [Export(typeof(EditorFormatDefinition))]
   [ClassificationType(ClassificationTypeNames = "MplLabel")]
-  [Name("LabelClassificationFormat")]
+  [Name("MplLabel")]
   [UserVisible(true)]
   [Order(Before = Priority.Default)]
   internal sealed class LabelClassificationFormat : ClassificationFormatDefinition {
     public LabelClassificationFormat() {
-      this.DisplayName = "MPL - Labels";
-      this.ForegroundColor = Color.FromRgb(38, 139, 210); //blue
+      this.DisplayName = "Labels".MplClass();
     }
   }
 
-  #endregion
-
-  #region Format definition
-
   [Export(typeof(EditorFormatDefinition))]
   [ClassificationType(ClassificationTypeNames = "MplConstant")]
-  [Name("ConstantClassificationFormat")]
+  [Name("MplConstant")]
   [UserVisible(true)]
   [Order(Before = Priority.Default)]
   internal sealed class ConstantClassificationFormat : ClassificationFormatDefinition {
     public ConstantClassificationFormat() {
-      this.DisplayName = "MPL - Constants";
-      this.ForegroundColor = Color.FromRgb(42, 161, 152); //cyan
+      this.DisplayName = "Constants".MplClass();
     }
   }
 
-  #endregion
-
-  #region Format definition
-
   [Export(typeof(EditorFormatDefinition))]
   [ClassificationType(ClassificationTypeNames = "MplObject")]
-  [Name("ObjectClassificationFormat")]
+  [Name("MplObject")]
   [UserVisible(true)]
   [Order(Before = Priority.Default)]
   internal sealed class ObjectClassificationFormat : ClassificationFormatDefinition {
     public ObjectClassificationFormat() {
-      this.DisplayName = "MPL - Objects";
-      this.ForegroundColor = Color.FromRgb(181, 137, 0); //yellow
+      this.DisplayName = "Objects".MplClass();
     }
   }
 
-  #endregion
-
-  #region Format definition
-
   [Export(typeof(EditorFormatDefinition))]
   [ClassificationType(ClassificationTypeNames = "MplList")]
-  [Name("ListClassificationFormat")]
+  [Name("MplList")]
   [UserVisible(true)]
   [Order(Before = Priority.Default)]
   internal sealed class ListClassificationFormat : ClassificationFormatDefinition {
     public ListClassificationFormat() {
-      this.DisplayName = "MPL - Lists";
-      this.ForegroundColor = Color.FromRgb(133, 153, 0); //green
-
+      this.DisplayName = "Lists".MplClass();
     }
   }
 
-  #endregion
-
-  #region Format definition
-
   [Export(typeof(EditorFormatDefinition))]
   [ClassificationType(ClassificationTypeNames = "MplText")]
-  [Name("TextClassificationFormat")]
+  [Name("MplText")]
   [UserVisible(true)]
   [Order(Before = Priority.Default)]
   internal sealed class TextClassificationFormat : ClassificationFormatDefinition {
     public TextClassificationFormat() {
-      this.DisplayName = "MPL - Strings";
-      this.ForegroundColor = Color.FromRgb(203, 75, 22); //orange
+      this.DisplayName = "Strings".MplClass();
     }
   }
 
-  #endregion
-
-  #region Format definition
-
   [Export(typeof(EditorFormatDefinition))]
   [ClassificationType(ClassificationTypeNames = "MplCodeBrackets")]
-  [Name("CodeBracketsClassificationFormat")]
+  [Name("MplCodeBrackets")]
   [UserVisible(true)]
   [Order(Before = Priority.Default)]
   internal sealed class CodeBracketsClassificationFormat : ClassificationFormatDefinition {
     public CodeBracketsClassificationFormat() {
       ThreadHelper.ThrowIfNotOnUIThread();
-      this.DisplayName = "MPL - Code Brackets";
-      if (MplPackage.Options.SolarizedTheme) {
-        this.ForegroundColor = MplPackage.MplEmphasizedColor;
-      }
+      this.DisplayName = "Code Brackets".MplClass();
     }
   }
-
-  #endregion
-
 }

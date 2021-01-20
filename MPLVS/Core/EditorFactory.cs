@@ -1,4 +1,4 @@
-﻿/* ****************************************************************************
+/* ****************************************************************************
  *
  * Copyright (c) Microsoft Corporation.
  *
@@ -16,6 +16,7 @@
 
 using System;
 using System.Runtime.InteropServices;
+
 using Microsoft;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.ComponentModelHost;
@@ -24,9 +25,10 @@ using Microsoft.VisualStudio.OLE.Interop;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.TextManager.Interop;
+
 using IServiceProvider = Microsoft.VisualStudio.OLE.Interop.IServiceProvider;
 
-namespace MPL {
+namespace MPLVS {
   using IOleServiceProvider = IServiceProvider;
 
   //About IVsEditorFactory.
@@ -38,7 +40,7 @@ namespace MPL {
     private readonly Guid _languageServiceId;
 
     public EditorFactory(Package package, Guid languageServiceId) {
-      Package = package;
+      Package            = package;
       _languageServiceId = languageServiceId;
     }
 
@@ -46,7 +48,7 @@ namespace MPL {
 
     protected ServiceProvider ServiceProvider { get; private set; }
 
-    protected bool PromptEncodingOnLoad => false;
+    protected static bool PromptEncodingOnLoad => false;
 
     public virtual int SetSite(IOleServiceProvider psp) {
       ServiceProvider = new ServiceProvider(psp);
@@ -88,14 +90,15 @@ namespace MPL {
 
       var isSupportedView = false;
       // Determine the physical view
-      if (VSConstants.LOGVIEWID_Primary == logicalView ||
-          VSConstants.LOGVIEWID_Debugging == logicalView ||
-          VSConstants.LOGVIEWID_Code == logicalView ||
-          VSConstants.LOGVIEWID_TextView == logicalView) {
+      if (VSConstants.LOGVIEWID_Primary == logicalView
+          || VSConstants.LOGVIEWID_Debugging == logicalView
+          || VSConstants.LOGVIEWID_Code == logicalView
+          || VSConstants.LOGVIEWID_TextView == logicalView) {
         // primary view uses NULL as pbstrPhysicalView
         isSupportedView = true;
-      } else if (VSConstants.LOGVIEWID_Designer == logicalView) {
-        physicalView = "Design";
+      }
+      else if (VSConstants.LOGVIEWID_Designer == logicalView) {
+        physicalView    = "Design";
         isSupportedView = true;
       }
 
@@ -138,11 +141,11 @@ namespace MPL {
         out int createDocumentWindowFlags) {
       ThreadHelper.ThrowIfNotOnUIThread();
       // Initialize output parameters
-      docView = IntPtr.Zero;
-      docData = IntPtr.Zero;
-      commandUIGuid = Guid.Empty;
+      docView                   = IntPtr.Zero;
+      docData                   = IntPtr.Zero;
+      commandUIGuid             = Guid.Empty;
       createDocumentWindowFlags = 0;
-      editorCaption = null;
+      editorCaption             = null;
 
       // Validate inputs
       if ((createEditorFlags & (uint)(VSConstants.CEF.OpenFile | VSConstants.CEF.Silent)) == 0) {
@@ -160,7 +163,8 @@ namespace MPL {
       if (docDataExisting != IntPtr.Zero) {
         docData = docDataExisting;
         Marshal.AddRef(docData);
-      } else {
+      }
+      else {
         docData = Marshal.GetIUnknownForObject(textLines);
       }
 
@@ -168,7 +172,8 @@ namespace MPL {
         var docViewObject = CreateDocumentView(documentMoniker, physicalView, hierarchy, itemid, textLines,
             docDataExisting == IntPtr.Zero, out editorCaption, out commandUIGuid);
         docView = Marshal.GetIUnknownForObject(docViewObject);
-      } finally {
+      }
+      finally {
         if (docView == IntPtr.Zero) {
           if (docDataExisting != docData && docData != IntPtr.Zero) {
             // Cleanup the instance of the docData that we have addref'ed
@@ -192,16 +197,17 @@ namespace MPL {
       if (docDataExisting == IntPtr.Zero) {
         // Create a new IVsTextLines buffer.
         var textLinesType = typeof(IVsTextLines);
-        var riid = textLinesType.GUID;
-        var clsid = typeof(VsTextBufferClass).GUID;
-        textLines = Package.CreateInstance(ref clsid, ref riid, textLinesType) as IVsTextLines;
+        var riid          = textLinesType.GUID;
+        var clsid         = typeof(VsTextBufferClass).GUID;
+        textLines         = Package.CreateInstance(ref clsid, ref riid, textLinesType) as IVsTextLines;
 
         // set the buffer's site
         ((IObjectWithSite)textLines).SetSite(ServiceProvider.GetService(typeof(IOleServiceProvider)));
-      } else {
+      }
+      else {
         // Use the existing text buffer
         var dataObject = Marshal.GetObjectForIUnknown(docDataExisting);
-        textLines = dataObject as IVsTextLines;
+        textLines      = dataObject as IVsTextLines;
         if (textLines == null) {
           // Try get the text buffer from textbuffer provider
           var textBufferProvider = dataObject as IVsTextBufferProvider;
@@ -223,7 +229,7 @@ namespace MPL {
       ThreadHelper.ThrowIfNotOnUIThread();
       //Init out params
       editorCaption = string.Empty;
-      cmdUI = Guid.Empty;
+      cmdUI         = Guid.Empty;
 
       if (string.IsNullOrEmpty(physicalView)) {
         // create code window as default physical view
@@ -239,11 +245,11 @@ namespace MPL {
         bool createdDocData, ref string editorCaption, ref Guid cmdUI) {
       ThreadHelper.ThrowIfNotOnUIThread();
       var codeWindowType = typeof(IVsCodeWindow);
-      var riid = codeWindowType.GUID;
-      var clsid = typeof(VsCodeWindowClass).GUID;
+      var riid           = codeWindowType.GUID;
+      var clsid          = typeof(VsCodeWindowClass).GUID;
 
-      //var compModel = (IComponentModel)new VsServiceProviderWrapper(Package).GetService(typeof(SComponentModel)); zdes bylo tak
-      var compModel = (IComponentModel) ServiceProvider.GetService(typeof(SComponentModel));
+      //var compModel      = (IComponentModel)new VsServiceProviderWrapper(Package).GetService(typeof(SComponentModel)); zdes bylo tak
+      var compModel      = (IComponentModel) ServiceProvider.GetService(typeof(SComponentModel));
       Assumes.Present(compModel);
       var adapterService = compModel.GetService<IVsEditorAdaptersFactoryService>();
 
@@ -284,12 +290,12 @@ namespace MPL {
 
       public TextBufferEventListener(IComponentModel componentModel, IVsTextLines textLines, Guid languageServiceId) {
         ThreadHelper.ThrowIfNotOnUIThread();
-        _componentModel = componentModel;
-        _textLines = textLines;
+        _componentModel    = componentModel;
+        _textLines         = textLines;
         _languageServiceId = languageServiceId;
 
         var connectionPointContainer = textLines as IConnectionPointContainer;
-        var bufferEventsGuid = typeof(IVsTextBufferDataEvents).GUID;
+        var bufferEventsGuid         = typeof(IVsTextBufferDataEvents).GUID;
         connectionPointContainer.FindConnectionPoint(ref bufferEventsGuid, out _connectionPoint);
         _connectionPoint.Advise(this, out _cookie);
       }

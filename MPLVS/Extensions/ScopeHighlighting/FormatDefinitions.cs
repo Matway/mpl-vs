@@ -1,23 +1,25 @@
-﻿using System.ComponentModel.Composition;
+using System.ComponentModel.Composition;
 using System.Windows.Media;
+
+using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Utilities;
-using Microsoft.VisualStudio.Shell;
 
-namespace MPL.BraceMatching {
+using MPLVS.Classification;
+
+namespace MPLVS.ScopeHighlighting {
   [Export(typeof(EditorFormatDefinition))]
-  [Name("MplBraceFound")]
+  [Name("MplScope")]
   [UserVisible(true)]
-  internal class BraceFoundFormatDefinition : MarkerFormatDefinition {
-    public BraceFoundFormatDefinition() {
+  internal class FormatDefinition : MarkerFormatDefinition {
+    public FormatDefinition() {
       ThreadHelper.ThrowIfNotOnUIThread();
-      DisplayName = "MPL - Brace Matching";
-      ZOrder = 5;
-      if (MplPackage.Options.SolarizedTheme) {
-        BackgroundColor = MplPackage.MplBraceMatchingColor;
-      } else {
-        BackgroundColor = Colors.LightBlue;
-      }
+
+      DisplayName = "Scope".MplClass();
+      ZOrder      = 5;
+
+      ForegroundColor = Color.FromArgb(33, 255, 132, 9);
+      BackgroundColor = Color.FromArgb(33, 91,  46,  0);
     }
   }
 }

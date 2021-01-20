@@ -1,16 +1,18 @@
-﻿using System.ComponentModel.Composition;
+using System.ComponentModel.Composition;
+
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Tagging;
 using Microsoft.VisualStudio.Utilities;
 
-namespace MPL.BraceMatching {
+using MPLVS.Core;
+
+namespace MPLVS.ScopeHighlighting {
   [Export(typeof(IViewTaggerProvider))]
   [ContentType(Constants.MPLContentType)]
   [TagType(typeof(TextMarkerTag))]
-  internal class BraceMatchingTaggerProvider : IViewTaggerProvider {
-    public ITagger<T> CreateTagger<T>(ITextView textView, ITextBuffer buffer) where T : ITag {
-      return buffer.Properties.GetOrCreateSingletonProperty(() => new BraceMatchingTagger(textView)) as ITagger<T>;
-    }
+  internal class Provider : IViewTaggerProvider {
+    public ITagger<T> CreateTagger<T>(ITextView view, ITextBuffer buffer) where T : ITag =>
+      view.ObtainOrAttachProperty(() => new Tagger(view)) as ITagger<T>;
   }
 }

@@ -1,18 +1,35 @@
-﻿using System;
-using System.Linq;
+using System;
 using System.Collections.Generic;
-using Microsoft.VisualStudio.Shell;
+using System.Linq;
+
+using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.OLE.Interop;
+using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.TextManager.Interop;
-using Microsoft.VisualStudio;
 
-namespace MPL {
-  /// <summary>
-  /// This is copied from SassyStudio (https://github.com/darrenkopp/SassyStudio)
-  /// </summary>
-  abstract class VSCommandTarget<T> : IOleCommandTarget {
-    readonly IOleCommandTarget _NextCommandTarget;
+namespace MPLVS {
+  internal abstract class VSStd2KCommand : ActivatabelCommand<VSConstants.VSStd2KCmdID> {
+    protected VSStd2KCommand(IVsTextView vsTextView, IWpfTextView textView) : base(vsTextView, textView) { }
+
+    protected override bool Activated() => true;
+    protected sealed override VSConstants.VSStd2KCmdID ConvertFromCommandId(uint id) => (VSConstants.VSStd2KCmdID)id;
+    protected sealed override uint ConvertFromCommand(VSConstants.VSStd2KCmdID command) => (uint)command;
+  }
+
+  internal abstract class ActivatabelCommand<T> : VSCommandTarget<T> {
+    protected ActivatabelCommand(IVsTextView vsTextView, IWpfTextView textView) : base(vsTextView, textView) { }
+
+    protected abstract bool Activated();
+    protected abstract bool Run(T command, uint options, IntPtr pvaIn, IntPtr pvaOut);
+
+    protected sealed override bool Execute(T command, uint options, IntPtr pvaIn, IntPtr pvaOut) =>
+      Activated() ? Run(command, options, pvaIn, pvaOut)
+                  : ExecuteNext(command, options, pvaIn, pvaOut);
+  }
+
+  internal abstract class VSCommandTarget<T> : IOleCommandTarget {
+    private readonly IOleCommandTarget _NextCommandTarget;
     protected readonly IVsTextView VsTextView;
     protected readonly IWpfTextView TextView;
     protected readonly Guid CommandGroupId;
@@ -22,13 +39,13 @@ namespace MPL {
       VsTextView = vsTextView;
       TextView = textView;
       CommandGroupId = typeof(T).GUID;
-      CommandIdSet = new HashSet<uint>(SupportedCommands().Select(x => ConvertFromCommand(x)));
+      CommandIdSet = new HashSet<uint>(SupportedCommands().Select(a => ConvertFromCommand(a)));
 
       _NextCommandTarget = AttachTo(vsTextView, this);
     }
 
-    protected virtual bool IsEnabled { get { return true; } }
-    protected virtual bool SupportsAutomation { get { return false; } }
+    protected virtual bool IsEnabled => true;
+    protected virtual bool SupportsAutomation => false;
 
     protected abstract IEnumerable<T> SupportedCommands();
     protected abstract T ConvertFromCommandId(uint id);
@@ -38,7 +55,7 @@ namespace MPL {
 
     protected bool ExecuteNext(T command, uint options, IntPtr pvaIn, IntPtr pvaOut) {
       ThreadHelper.ThrowIfNotOnUIThread();
-      Guid pguidCmdGroup = CommandGroupId;
+      var pguidCmdGroup = CommandGroupId;
 
       return _NextCommandTarget.Exec(ref pguidCmdGroup, ConvertFromCommand(command), options, pvaIn, pvaOut) == VSConstants.S_OK;
     }
@@ -46,10 +63,11 @@ namespace MPL {
     public int Exec(ref Guid pguidCmdGroup, uint nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut) {
       ThreadHelper.ThrowIfNotOnUIThread();
       if (pguidCmdGroup == CommandGroupId && CommandIdSet.Contains(nCmdID)) {
-        bool result = Execute(ConvertFromCommandId(nCmdID), nCmdexecopt, pvaIn, pvaOut);
+        var result = Execute(ConvertFromCommandId(nCmdID), nCmdexecopt, pvaIn, pvaOut);
 
-        if (result)
+        if (result) {
           return VSConstants.S_OK;
+        }
       }
 
       return _NextCommandTarget.Exec(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut);
@@ -58,7 +76,7 @@ namespace MPL {
     public int QueryStatus(ref Guid pguidCmdGroup, uint cCmds, OLECMD[] prgCmds, IntPtr pCmdText) {
       ThreadHelper.ThrowIfNotOnUIThread();
       if (pguidCmdGroup == CommandGroupId) {
-        for (int i = 0; i < cCmds; i++) {
+        for (var i = 0; i < cCmds; i++) {
           if (CommandIdSet.Contains(prgCmds[i].cmdID)) {
             if (IsEnabled) {
               prgCmds[i].cmdf = (uint)(OLECMDF.OLECMDF_ENABLED | OLECMDF.OLECMDF_SUPPORTED);
@@ -73,7 +91,7 @@ namespace MPL {
       return _NextCommandTarget.QueryStatus(ref pguidCmdGroup, cCmds, prgCmds, pCmdText);
     }
 
-    static IOleCommandTarget AttachTo(IVsTextView view, IOleCommandTarget command) {
+    private static IOleCommandTarget AttachTo(IVsTextView view, IOleCommandTarget command) {
       view.AddCommandFilter(command, out var next);
       return next;
     }

@@ -1,15 +1,16 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.TextManager.Interop;
 
-namespace MPL.Commands {
-  internal class CommentSelectionCommandHandler : VSCommandTarget<VSConstants.VSStd2KCmdID> {
+namespace MPLVS.Commands {
+  internal class CommentSelection : VSCommandTarget<VSConstants.VSStd2KCmdID> {
     private readonly ITextBuffer buffer;
 
-    public CommentSelectionCommandHandler(IVsTextView vsTextView, IWpfTextView textView)
+    public CommentSelection(IVsTextView vsTextView, IWpfTextView textView)
       : base(vsTextView, textView) {
       buffer = textView.TextBuffer;
     }
@@ -63,7 +64,6 @@ namespace MPL.Commands {
         }
       }
 
-
       var snapshot = buffer.CurrentSnapshot;
       var start = TextView.Selection.Start.Position.Position;
       var end = TextView.Selection.End.Position.Position;
@@ -81,14 +81,16 @@ namespace MPL.Commands {
               int startPos;
               if (lineNum == 0 && TextView.Selection.Start.Position.Position != line.Start.Position) {
                 startPos = TextView.Selection.Start.Position.Position;
-              } else {
+              }
+              else {
                 if (insertStartOffset == null) {
                   insertStartOffset = GetOffset(snapshot, start, end);
                 }
 
                 if (TextView.Selection.Mode == TextSelectionMode.Stream) {
                   startPos = line.Start.Position + insertStartOffset.GetValueOrDefault();
-                } else {
+                }
+                else {
                   startPos = line.Start.Position + width;
                 }
               }
@@ -144,12 +146,10 @@ namespace MPL.Commands {
       return offset == int.MaxValue ? 0 : offset;
     }
 
-    protected override VSConstants.VSStd2KCmdID ConvertFromCommandId(uint id) {
-      return (VSConstants.VSStd2KCmdID) id;
-    }
+    protected override VSConstants.VSStd2KCmdID ConvertFromCommandId(uint id) =>
+      (VSConstants.VSStd2KCmdID)id;
 
-    protected override uint ConvertFromCommand(VSConstants.VSStd2KCmdID command) {
-      return (uint) command;
-    }
+    protected override uint ConvertFromCommand(VSConstants.VSStd2KCmdID command) =>
+      (uint)command;
   }
 }

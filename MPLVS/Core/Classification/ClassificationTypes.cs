@@ -1,10 +1,10 @@
-﻿using System.ComponentModel.Composition;
+using System.ComponentModel.Composition;
+
 using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Utilities;
 
-namespace MPL.Classification {
+namespace MPLVS.Classification {
   internal static class MplClassificationTypes {
-
     [Export]
     [Name("MplContent")]
     [BaseDefinition("text")]

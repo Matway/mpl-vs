@@ -1,63 +1,36 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using Microsoft.VisualStudio.OLE.Interop;
+using System.Runtime.InteropServices;
+
+using Microsoft.VisualStudio;
+using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.TextManager.Interop;
-using Microsoft.VisualStudio;
-using Microsoft.VisualStudio.Text;
-using Microsoft.VisualStudio.Shell;
-using System.Runtime.InteropServices;
-using MPL.ParseTree;
-using System.Runtime.CompilerServices;
 
-namespace MPL.Commands {
-  class BraceCompletionCommandHandler : IOleCommandTarget {
-    private static readonly Dictionary<char, char> bracePairs = new Dictionary<char, char> {
-      ['{'] = '}',
-      ['['] = ']',
-      ['('] = ')',
-      [':'] = ';'  // We treat label start (:) and label end (;) as a brace pair.
-                   // So now, we have auto-completion of closing ; character after label start.
-    };
+using MPLVS.Core.ParseTree;
+using MPLVS.Extensions;
 
-    private IOleCommandTarget _NextCommandTarget;
-    protected readonly IWpfTextView TextView;
+namespace MPLVS.Commands {
+  internal class BraceCompletion : VSStd2KCommand {
+    public BraceCompletion(IVsTextView vsTextView, IWpfTextView textView) : base(vsTextView, textView) { }
 
-    public BraceCompletionCommandHandler(IVsTextView vsTextView, IWpfTextView textView) {
-      TextView = textView;
-      vsTextView.AddCommandFilter(this, out _NextCommandTarget);
-    }
-
-    public int QueryStatus(ref Guid pguidCmdGroup, uint cCmds, OLECMD[] prgCmds, IntPtr pCmdText) {
-      ThreadHelper.ThrowIfNotOnUIThread();
-      return _NextCommandTarget.QueryStatus(ref pguidCmdGroup, cCmds, prgCmds, pCmdText);
-    }
-
-    public int Exec(ref Guid pguidCmdGroup, uint nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut) {
-      ThreadHelper.ThrowIfNotOnUIThread();
-
-      if (!IsBraceCompletionNeeded(ref pguidCmdGroup, nCmdID)) {
-        goto noCompletionNeeded;
-      }
-
+    protected override bool Run(VSConstants.VSStd2KCmdID nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut) {
       var typedChar = (char)(ushort)Marshal.GetObjectForNativeVariant(pvaIn);
 
-      if (IsOpeningBrace(typedChar)) {
-        return HandleOpeningBrace(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut, typedChar);
+      if (typedChar.IsOpeningBrace()) {
+        return HandleOpeningBrace(nCmdID, nCmdexecopt, pvaIn, pvaOut, typedChar);
       }
 
-      if (IsClosingBrace(typedChar) && IsEqualToNextCharacter(typedChar)) {
+      if (typedChar.IsClosingBrace() && IsEqualToNextCharacter(typedChar)) {
         return HandleClosingBrace();
       }
 
-    noCompletionNeeded:
-      return _NextCommandTarget.Exec(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut);
+      return ExecuteNext(nCmdID, nCmdexecopt, pvaIn, pvaOut);
     }
 
     private bool IsEqualToNextCharacter(char typedChar) =>
-      IsEndOfInput()
-      ? false
-      : TextView.Caret.Position.BufferPosition.GetChar() == typedChar;
+      !IsEndOfInput() && (TextView.Caret.Position.BufferPosition.GetChar() == typedChar);
 
     // TODO: Maybe vs api have some tools for that.
     // FIXME: Get rid of the exception.
@@ -71,66 +44,33 @@ namespace MPL.Commands {
       }
     }
 
-    private int HandleClosingBrace() {
+    private bool HandleClosingBrace() {
       TextView.Caret.MoveToNextCaretPosition();
-      return VSConstants.S_OK;
+      return true;
     }
 
-    private int HandleOpeningBrace(ref Guid pguidCmdGroup, uint nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut, char typedChar) {
+    private bool HandleOpeningBrace(VSConstants.VSStd2KCmdID nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut, char typedChar) {
       ThreadHelper.ThrowIfNotOnUIThread();
 
-      _ = _NextCommandTarget.Exec(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut);
+      _ = ExecuteNext(nCmdID, nCmdexecopt, pvaIn, pvaOut);
 
       var caretPoint = TextView.Caret.Position.BufferPosition;
-      TextView.TextBuffer.Insert(TextView.Caret.Position.BufferPosition.Position, bracePairs[typedChar].ToString());
+      TextView.TextBuffer.Insert(TextView.Caret.Position.BufferPosition.Position, Core.ParseTree.Utils.Braces[typedChar].ToString());
       TextView.Caret.MoveTo(caretPoint.TranslateTo(TextView.TextSnapshot, PointTrackingMode.Negative));
 
-      return VSConstants.S_OK;
+      return true;
     }
 
-    private bool IsBraceCompletionNeeded(ref Guid pguidCmdGroup, uint nCmdID) {
+    protected override bool Activated() {
       ThreadHelper.ThrowIfNotOnUIThread();
 
       return
         MplPackage.Options.AutoBraceCompletion
-        && IsActiveInput(ref pguidCmdGroup, nCmdID)
-        && !IsStringOrComment();
+        && !TextView.IsCaretInStringOrComment(); // Do we need this?
     }
 
-    private static bool IsActiveInput(ref Guid pguidCmdGroup, uint nCmdID)
-      => pguidCmdGroup == VSConstants.VSStd2K && nCmdID == (uint)VSConstants.VSStd2KCmdID.TYPECHAR;
-
-    private static bool IsOpeningBrace(char a) => bracePairs.ContainsKey(a);
-    private static bool IsClosingBrace(char a) => bracePairs.ContainsValue(a);
-
-    private bool IsStringOrComment() {
-      Builder.Node root = ParseTree.Tree.Root();
-      var notStringOrComment = true;
-      var notReached = true;
-      var point = TextView.Caret.Position.BufferPosition;
-
-      void Traverse(Builder.Node node) {
-        if (node.children == null) {
-          if (notReached && node.begin < point.Position && node.end >= point.Position) {
-            if (node.name == "Comment" || (node.name == "String" && node.end != point.Position)) {
-              notStringOrComment = false;
-            }
-
-            notReached = false;
-            return;
-          }
-
-          return;
-        }
-
-        foreach (var child in node.children) {
-          Traverse(child);
-        }
-      }
-
-      Traverse(root);
-
-      return !notStringOrComment;
+    protected override IEnumerable<VSConstants.VSStd2KCmdID> SupportedCommands() {
+      yield return VSConstants.VSStd2KCmdID.TYPECHAR;
     }
   }
 }

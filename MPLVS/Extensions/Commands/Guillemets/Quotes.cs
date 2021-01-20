@@ -1,58 +1,51 @@
-﻿using System;
-using Microsoft.VisualStudio.OLE.Interop;
-using Microsoft.VisualStudio.Text.Editor;
-using Microsoft.VisualStudio.TextManager.Interop;
-using Microsoft.VisualStudio;
-using Microsoft.VisualStudio.Text;
-using Microsoft.VisualStudio.Shell;
+using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
-namespace MPL.Commands {
-  class AngularQuotesCommandHandler : IOleCommandTarget {
-    private char typedChar;
-    private SnapshotPoint point;
-    private IOleCommandTarget _NextCommandTarget;
-    protected readonly IVsTextView VsTextView;
-    protected readonly IWpfTextView TextView;
+using Microsoft.VisualStudio;
+using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Text;
+using Microsoft.VisualStudio.Text.Editor;
+using Microsoft.VisualStudio.TextManager.Interop;
 
-    public AngularQuotesCommandHandler(IVsTextView vsTextView, IWpfTextView textView) {
-      VsTextView = vsTextView;
-      TextView = textView;
+namespace MPLVS.Commands.Guillemets {
+  internal sealed class AngularQuotes : VSStd2KCommand {
+    public AngularQuotes(IVsTextView vsTextView, IWpfTextView textView) : base(vsTextView, textView) { }
 
-      VsTextView.AddCommandFilter(this, out _NextCommandTarget);
-    }
-
-    public int QueryStatus(ref Guid pguidCmdGroup, uint cCmds, OLECMD[] prgCmds, IntPtr pCmdText) {
-      ThreadHelper.ThrowIfNotOnUIThread();
-      return _NextCommandTarget.QueryStatus(ref pguidCmdGroup, cCmds, prgCmds, pCmdText);
-    }
-
-    public int Exec(ref Guid pguidCmdGroup, uint nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut) {
-      ThreadHelper.ThrowIfNotOnUIThread();
-      if (pguidCmdGroup == VSConstants.VSStd2K && nCmdID == (uint)VSConstants.VSStd2KCmdID.TYPECHAR && MplPackage.Options.AngularQuotes) {
-        typedChar = (char)(ushort)Marshal.GetObjectForNativeVariant(pvaIn);
-        point = TextView.Caret.Position.BufferPosition;
-      } else {
-        return _NextCommandTarget.Exec(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut);
-      }
+    protected override bool Run(VSConstants.VSStd2KCmdID nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut) {
+      var typedChar = (char)(ushort)Marshal.GetObjectForNativeVariant(pvaIn);
+      var point     = TextView.Caret.Position.BufferPosition;
 
       if (typedChar == '<') {
         if (point.Position != 0 && TextView.TextBuffer.CurrentSnapshot.GetText(point.Position - 1, 1) == "<") {
           TextView.TextBuffer.Replace(new Span(point.Position - 1, 1), "«");
-        } else {
-          return _NextCommandTarget.Exec(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut);
         }
-      } else if (typedChar == '>') {
+        else {
+          return ExecuteNext(nCmdID, nCmdexecopt, pvaIn, pvaOut);
+        }
+      }
+      else if (typedChar == '>') {
         if (point.Position != 0 && TextView.TextBuffer.CurrentSnapshot.GetText(point.Position - 1, 1) == ">") {
           TextView.TextBuffer.Replace(new Span(point.Position - 1, 1), "»");
-        } else {
-          return _NextCommandTarget.Exec(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut);
         }
-      } else {
-        return _NextCommandTarget.Exec(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut);
+        else {
+          return ExecuteNext(nCmdID, nCmdexecopt, pvaIn, pvaOut);
+        }
+      }
+      else {
+        return ExecuteNext(nCmdID, nCmdexecopt, pvaIn, pvaOut);
       }
 
-      return VSConstants.S_OK;
+      return true;
+    }
+
+    protected override bool Activated() {
+      ThreadHelper.ThrowIfNotOnUIThread();
+      return MplPackage.Options.AngularQuotes;
+    }
+
+    protected override IEnumerable<VSConstants.VSStd2KCmdID> SupportedCommands() {
+      yield return VSConstants.VSStd2KCmdID.TYPECHAR;
     }
   }
 }
