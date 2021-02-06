@@ -68,66 +68,66 @@ namespace MPLVS.Classification {
       this.results.Clear();
     }
 
-    public void StartCompound(object o, (string name, int begin, int line, int column) startInfo) {
-      if (startInfo.name == "Label") {
+    public void StartCompound(object o, Parser.CompoundStart startInfo) {
+      if (startInfo.Name == "Label") {
         this.isLabel = true;
       }
     }
 
-    public void Terminal(object o, (string name, int begin, int end, int line, int column) terminalInfo) {
-      switch (terminalInfo.name) {
+    public void Terminal(object o, Parser.TerminalStart terminalInfo) {
+      switch (terminalInfo.Name) {
         case "Name": {
           if (isLabel) {
-            Add(terminalInfo.begin, terminalInfo.end, NodeType.LABEL);
+            Add(terminalInfo.Begin, terminalInfo.End, NodeType.LABEL);
             isLabel = false;
             break;
           }
 
-          var name = TextBuffer.CurrentSnapshot.GetText(terminalInfo.begin, terminalInfo.end - terminalInfo.begin); // FIXME: GC.
-          Add(terminalInfo.begin, terminalInfo.end, Constants.Builtins.Contains(name) ? NodeType.BUILTIN : NodeType.MPLCONTENT);
+          var name = TextBuffer.CurrentSnapshot.GetText(terminalInfo.Begin, terminalInfo.End - terminalInfo.Begin); // FIXME: GC.
+          Add(terminalInfo.Begin, terminalInfo.End, Constants.Builtins.Contains(name) ? NodeType.BUILTIN : NodeType.MPLCONTENT);
           break;
         }
 
         case "SomeError":
-          Add(terminalInfo.begin, terminalInfo.end, NodeType.MPLCONTENT);
+          Add(terminalInfo.Begin, terminalInfo.End, NodeType.MPLCONTENT);
           break;
 
         case "Comment":
-          Add(terminalInfo.begin, terminalInfo.end, NodeType.COMMENT);
+          Add(terminalInfo.Begin, terminalInfo.End, NodeType.COMMENT);
           break;
 
         case "String":
-          Add(terminalInfo.begin, terminalInfo.end, NodeType.TEXT);
+          Add(terminalInfo.Begin, terminalInfo.End, NodeType.TEXT);
           break;
 
         case "Number":
         case "Real":
-          Add(terminalInfo.begin, terminalInfo.end, NodeType.CONSTANT);
+          Add(terminalInfo.Begin, terminalInfo.End, NodeType.CONSTANT);
           break;
 
         case "'{'":
         case "'}'":
-          Add(terminalInfo.begin, terminalInfo.end, NodeType.OBJECT);
+          Add(terminalInfo.Begin, terminalInfo.End, NodeType.OBJECT);
           break;
 
         case "'['":
         case "']'":
-          Add(terminalInfo.begin, terminalInfo.end, NodeType.CODEBRACKETS);
+          Add(terminalInfo.Begin, terminalInfo.End, NodeType.CODEBRACKETS);
           break;
 
         case "'('":
         case "')'":
-          Add(terminalInfo.begin, terminalInfo.end, NodeType.LIST);
+          Add(terminalInfo.Begin, terminalInfo.End, NodeType.LIST);
           break;
 
         case "'.'":
         case "','":
-          Add(terminalInfo.begin, terminalInfo.end, NodeType.MPLCONTENT);
+          Add(terminalInfo.Begin, terminalInfo.End, NodeType.MPLCONTENT);
           break;
 
         case "':'":
         case "';'":
-          Add(terminalInfo.begin, terminalInfo.end, NodeType.MPLCONTENT);
+          Add(terminalInfo.Begin, terminalInfo.End, NodeType.MPLCONTENT);
           break;
 
         case "NameReadMember":
@@ -135,7 +135,7 @@ namespace MPLVS.Classification {
         case "NameMember":
         case "NameRead":
         case "NameWrite":
-          Add(terminalInfo.begin, terminalInfo.end, NodeType.MPLCONTENT);
+          Add(terminalInfo.Begin, terminalInfo.End, NodeType.MPLCONTENT);
           break;
 
         case "LF":
@@ -145,7 +145,7 @@ namespace MPLVS.Classification {
           break;
 
         default:
-          Debug.Fail("Unknown symbol: " + terminalInfo.name);
+          Debug.Fail("Unknown symbol: " + terminalInfo.Name);
           break;
       }
     }

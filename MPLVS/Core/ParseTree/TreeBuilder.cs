@@ -69,17 +69,17 @@ namespace MPLVS.ParseTree {
       nodes.Peek().children.Add(n);
     }
 
-    public void StartCompound(object obj, (string name, int begin, int line, int column) startInfo) {
-      if (!IsBlock(startInfo.name)) {
+    public void StartCompound(object obj, Parser.CompoundStart startInfo) {
+      if (!IsBlock(startInfo.Name)) {
         return;
       }
 
       var node = new Node {
-        begin    = startInfo.begin,
-        end      = startInfo.begin,
-        name     = startInfo.name,
-        line     = startInfo.line,
-        column   = startInfo.column,
+        begin    = startInfo.Begin,
+        end      = startInfo.Begin,
+        name     = startInfo.Name,
+        line     = startInfo.Line,
+        column   = startInfo.Column,
         children = new List<Node>()
       };
 
@@ -89,24 +89,24 @@ namespace MPLVS.ParseTree {
       nodes.Push(node);
     }
 
-    public void EndCompound(object obj, (string name, int end) endInfo) {
-      if (!IsBlock(endInfo.name)) {
+    public void EndCompound(object obj, Parser.CompoundEnd endInfo) {
+      if (!IsBlock(endInfo.Name)) {
         return;
       }
 
       if (nodes.Count > 1) {
-        nodes.Peek().end = endInfo.end;
+        nodes.Peek().end = endInfo.End;
       }
       nodes.Pop();
     }
 
-    public void Terminal(object obj, (string name, int begin, int end, int line, int column) terminalInfo) {
+    public void Terminal(object obj, Parser.TerminalStart terminalInfo) {
       AddChild(new Node {
-        begin  = terminalInfo.begin,
-        end    = terminalInfo.end,
-        line   = terminalInfo.line,
-        column = terminalInfo.column,
-        name   = terminalInfo.name
+        begin  = terminalInfo.Begin,
+        end    = terminalInfo.End,
+        line   = terminalInfo.Line,
+        column = terminalInfo.Column,
+        name   = terminalInfo.Name
       });
     }
 
