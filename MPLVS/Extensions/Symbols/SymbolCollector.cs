@@ -132,16 +132,20 @@ namespace MPLVS.Symbols {
     public static IEnumerable<ParseTree.Builder.Node> Labels(ParseTree.Builder.Node node) =>
       Flatten(node).Where(a => a.IsLabel());
 
-    public static IEnumerable<ParseTree.Builder.Node> Flatten(ParseTree.Builder.Node node) {
+    public static IEnumerable<ParseTree.Builder.Node> Flatten(ParseTree.Builder.Node node) =>
+      Flatten(node, a => a);
+
+    // FIXME: GC.
+    public static IEnumerable<ParseTree.Builder.Node> Flatten(ParseTree.Builder.Node node, Func<ParseTree.Builder.Node, ParseTree.Builder.Node> selector) {
       IEnumerable<ParseTree.Builder.Node> empty = Array.Empty<ParseTree.Builder.Node>();
 
       if (node is null) { return empty; }
 
-      var payload = empty.Append(node);
+      var payload = empty.Append(selector(node));
 
       return
         node.children is object
-        ? payload.Concat(node.children.SelectMany(a => Flatten(a)))
+        ? payload.Concat(node.children.Select(a => selector(a)).SelectMany(a => Flatten(a, selector)))
         : payload;
     }
 

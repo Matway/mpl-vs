@@ -8,9 +8,16 @@ using Microsoft.VisualStudio.Text.Editor.OptionsExtensionMethods;
 
 using MPLVS.Core.ParseTree;
 using MPLVS.ParseTree;
+using MPLVS.Symbols;
 
 namespace MPLVS.SmartIndent {
   internal class Indentation : ISmartIndent {
+    private struct Level {
+      public int Depth;
+      public int OpenCount;
+      public bool IsClosed;
+    }
+
     public Indentation(ITextView view) {
       if (view is null) {
         throw new ArgumentNullException(nameof(view));
@@ -20,97 +27,103 @@ namespace MPLVS.SmartIndent {
     }
 
     public int? GetDesiredIndentation(ITextSnapshotLine line) {
-      if (line is null) {
-        return null;
-      }
+      if (line is null || line.Start.Position == 0) { return null; }
 
-      var position = line.Start.Position;
-      if (position == 0) {
-        return null;
-      }
+      var root = Core.Utils.ObtainOrAttachTree(this.view.TextBuffer).Root();
 
-      var root = Core.Utils.ObtainOrAttachTree(view.TextBuffer).Root();
-
-      if (root.name != "Program") {
-        return null;
-      }
-
-      return DesiredIndentation(position, root);
+      return
+        root.name != "Program"
+        ? null
+        : this.DesiredIndentation(line.LineNumber, root);
     }
 
-    private int? DesiredIndentation(int position, Builder.Node root) {
-      var ancestors = Utils.AllAncestors(root, position - 1).ToList();
-
-      if (!ancestors.Any()) {
-        return null;
+    // TODO: What should we do if a caret placed inside of a string?
+    private int? DesiredIndentation(int line, Builder.Node node) {
+      var currentLineIndentation = 0;
+      var nextLineIndentation = 0;
+      var lastOpenLine = int.MinValue;
+      var levels = new Stack<Level>();
+      foreach (var currentLine in Files.Flatten(node, SimplifyInlineBlock()).TakeWhile(a => a.line <= line).GroupBy(a => a.line)) {
+        currentLineIndentation = nextLineIndentation;
+        ProcessFirstSymbol(ref currentLineIndentation, ref nextLineIndentation, ref lastOpenLine, levels, currentLine);
+        ProcessRestSymbols(ref nextLineIndentation, ref lastOpenLine, levels, currentLine);
       }
 
-      // TODO: Revise this explanation.
-      // If at the right side of a caret is a closing symbol ) ; ] }
-      // then indentation must be less than indentation of current block.
-      //
-      // In the beginning of this method, in the left side of a caret always will be a new-line character.
-      // But it doesn't mean that it will be a new-line symbol.
-      // For example, if caret placed inside a string, then this new-line character will be a part of a string,
-      // but not the new-line symbol like LF or CRLF.
-      // So, there are two possible situations:
-      //   a) \n caret a-closing-symbol
-      //   b) \n caret not-a-closing-symbol
-      // And the \n can be: the part of a string; a new-line symbol.
-      // So finally we can have 4 different situations:
-      // 1) Code: \n|      Parse-tree: \n       Ancestors: (\n)
-      //
-      // 2) Code: (\n|)    Parse-tree: list     Ancestors: (list \n)
-      //                               / | \
-      //                              ( \n  )
-      //
-      // 3) Code: ("\n|")  Parse-tree:  list    Ancestors: (list string)
-      //                              /   |  \
-      //                             ( string )
-      //
-      // 4) Code: (\n|...) Parse-tree: list     Ancestors: (list \n)
-      //                              / | | \
-      //                             ( \n ... )
-      //
-      // Here, we interested only in 2nd case (\n|).
-      // For it, Ancestors will return (list \n) and for much complicated code it will return (... list \n).
-      // In this sequence of symbols (list \n), the list will contain the closing bracket as the last child.
-      // And instead of the list, there can be object, code, or label.
-      // But the Ancestors will return similar elements for 2nd and 4th cases, it will be (list \n),
-      // so we must check the parse-tree, if it is contains something between caret and closing brace.
-      if (ancestors.Count > 1) {
-        var last         = ancestors.Last();
-        var parentOfLast = ancestors[ancestors.Count - 2];
-        var children     = parentOfLast.children;
-        if (last.IsEol()) {
-          if (children.Count > 1) {
-            if (children.Last().IsScopeEnd()) {
-              // Check if the closing bracket and a caret at the same line,
-              // and between them stands nothing except tabs/spaces.
-              if (ReferenceEquals(children[children.Count - 2], last)) {
-                return IndentationLevel(ancestors) - IndentationSize;
-              }
-            }
-          }
+      return currentLineIndentation * this.IndentationSize;
+    }
+
+    private static void ProcessFirstSymbol(ref int currentLineIndentation, ref int nextLineIndentation, ref int lastOpenLine, Stack<Level> levels, IGrouping<int, Builder.Node> currentLine) {
+      var first = currentLine.First();
+
+      if (first.IsScopeStart()) {
+        lastOpenLine = first.line;
+        ++nextLineIndentation;
+        levels.Push(new Level { Depth = nextLineIndentation, OpenCount = 1 });
+      }
+      else if (first.IsScopeEnd()) {
+        var last = levels.Pop();
+
+        if (!last.IsClosed) {
+          --currentLineIndentation;
+          --nextLineIndentation;
+          levels.Push(new Level { Depth = nextLineIndentation, OpenCount = last.OpenCount - 1, IsClosed = true });
+        }
+        else {
+          levels.Push(new Level { OpenCount = last.OpenCount - 1, IsClosed = true });
         }
 
-        // If it is not the end-of-line, then it should be a string.
-        // TODO: What should we do if a caret placed inside of a string?
+        if (levels.Peek().OpenCount < 1) {
+          _ = levels.Pop();
+        }
       }
-
-      // In the middle of scope.
-      return IndentationLevel(ancestors);
     }
 
-    private int IndentationLevel(List<Builder.Node> nodes) =>
-      nodes.Where(a => Builder.IsBlock(a.name)) // Filter the last item, because it might be a terminal.
-           .GroupBy(a => a.line)
-           .Count() * IndentationSize;
+    private static Func<Builder.Node, Builder.Node> SimplifyInlineBlock() => node => {
+      if (node.IsScope() && node.children is object && node.children.Any()) {
+        var end = node.children.Last();
+
+        if (end.IsScopeEnd() && node.line == end.line && end.end == node.end) {
+          return new ParseTree.Builder.Node { name = "", line = node.line };
+        }
+      }
+
+      return node;
+    };
+
+    private static void ProcessRestSymbols(ref int nextLineIndentation, ref int lastOpenLine, Stack<Level> levels, IGrouping<int, Builder.Node> currentLine) {
+      foreach (var symbol in currentLine.Skip(1)) {
+        if (symbol.IsScopeStart()) {
+          if (lastOpenLine != symbol.line) {
+            lastOpenLine = symbol.line;
+            ++nextLineIndentation;
+            levels.Push(new Level { Depth = nextLineIndentation, OpenCount = 1 });
+          }
+          else {
+            var last = levels.Pop();
+            levels.Push(new Level { IsClosed = last.IsClosed, OpenCount = last.OpenCount + 1, Depth = last.Depth });
+          }
+        }
+        else if (symbol.IsScopeEnd()) {
+          var last = levels.Pop();
+          if (last.IsClosed) {
+            levels.Push(new Level { IsClosed = true, Depth = last.Depth, OpenCount = last.OpenCount - 1 });
+          }
+          else {
+            levels.Push(new Level { IsClosed = true, Depth = last.Depth - 1, OpenCount = last.OpenCount - 1 });
+          }
+
+          nextLineIndentation = levels.Peek().Depth;
+          if (levels.Peek().OpenCount < 1) {
+            _ = levels.Pop();
+          }
+        }
+      }
+    }
 
     private int IndentationSize =>
-      view.Options.IsConvertTabsToSpacesEnabled()
-          ? view.Options.GetIndentSize()
-          : view.Options.GetTabSize();
+      this.view.Options.IsConvertTabsToSpacesEnabled()
+      ? this.view.Options.GetIndentSize()
+      : this.view.Options.GetTabSize();
 
     public void Dispose() { }
 
