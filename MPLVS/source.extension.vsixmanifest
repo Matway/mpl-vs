@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
     <Metadata>
-        <Identity Id="Matway.MPL.e987cf53-0155-4648-bd5d-91af5f10605f" Version="21.02.15" Language="en-US" Publisher="Matway" />
+        <Identity Id="Matway.MPL.e987cf53-0155-4648-bd5d-91af5f10605f" Version="21.02.17" Language="en-US" Publisher="Matway" />
         <DisplayName>MPL language support</DisplayName>
         <Description xml:space="preserve">MPL language support</Description>
         <Preview>true</Preview>
