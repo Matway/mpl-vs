@@ -710,9 +710,9 @@ namespace MPLVS {
 
     private static bool IsHexDigit(char ch) => IsUpperCaseHexDigit(ch) || ch >= 'a' && ch <= 'f';
 
-    private static bool IsMplLetter(char ch) => !IsDigit(ch) && "\t\n\r !\"#()+,-.:;@[]{}".IndexOf(ch) < 0;
+    public static bool IsMplLetter(char ch) => !IsDigit(ch) && "\t\n\r !\"#()+,-.:;@[]{}".IndexOf(ch) < 0;
 
-    private static bool IsDigit(char ch) => ch >= '0' && ch <= '9';
+    public static bool IsDigit(char ch) => ch >= '0' && ch <= '9';
 
     private void Error(int begin, int end, string token, string message) =>
       PushError?.Invoke(this, new SyntaxError(begin, end, token, message));

@@ -68,6 +68,7 @@
     <Compile Include="Core\Classification\ClassifierProvider.cs" />
     <Compile Include="Core\Classification\ColorizationListener.cs" />
     <Compile Include="Core\Tree.cs" />
+    <Compile Include="Extensions\Commands\GoToFile.cs" />
     <Compile Include="Extensions\Folding\Tooltip.cs" />
     <Compile Include="Extensions\Commands\Guillemets\Quotes.cs" />
     <Compile Include="Extensions\Commands\Guillemets\Backspace.cs" />
