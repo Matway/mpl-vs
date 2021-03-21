@@ -203,7 +203,7 @@ namespace MPLVS.Extensions {
     /// <param name="selectionLength">The length of text to select a <paramref name="position"/> or -1 to
     /// not select any text at that location.</param>
     /// <returns>Returns the text view if the document could be opened in a text editor instance or was
-    /// already open in one.  Returns null if the reference could not be obtained.</returns>
+    /// already open in one. Returns null if the reference could not be obtained.</returns>
     public static IVsTextView GetTextViewForDocument(string filename, int position, int selectionLength) {
       IVsTextView textView = null;
       var frame = OpenTextEditorForFile(filename);
@@ -212,8 +212,6 @@ namespace MPLVS.Extensions {
         textView = VsShellUtilities.GetTextView(frame);
 
         if (textView != null && position != -1) {
-          int topLine;
-
           if (textView.GetLineAndColumn(position, out var startLine, out var startColumn) == VSConstants.S_OK
               && textView.GetLineAndColumn(position + selectionLength, out var endLine, out var endColumn) == VSConstants.S_OK
               && textView.SetCaretPos(startLine, startColumn) == VSConstants.S_OK) {
@@ -221,17 +219,13 @@ namespace MPLVS.Extensions {
               textView.SetSelection(startLine, startColumn, endLine, endColumn);
             }
 
-            // Ensure some surrounding lines are visible so that it's not right at the top
-            // or bottom of the view.
-            topLine = startLine - 5;
-
-            if (topLine < 0) { topLine = 0; }
-
+            // FIXME: What to do with a multi-line span?
+            textView.CenterLines(startLine, 1);
             textView.EnsureSpanVisible(new TextSpan {
-              iStartLine = topLine,
+              iStartLine  = startLine,
               iStartIndex = startColumn,
-              iEndLine = endLine + 5,
-              iEndIndex = endColumn
+              iEndLine    = endLine,
+              iEndIndex   = endColumn
             });
           }
           else {
