@@ -2,7 +2,6 @@
 // REx command line: mplGrammar_2017Jul01_reduced-extended.ebnf -tree -ll 2 -faster -csharp
 
 using System;
-using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -431,8 +430,8 @@ namespace MPLVS {
           return;
         }
 
-        ReadOnlySpan<char> escapeTails = stackalloc char[] { '\"', '\\', 'n', 'r', 't' };
-        if (escapeTails.IndexOf(CurChar) >= 0 || IsUpperCaseHexDigit(CurChar)) {
+        char[] escapeTails = { '\"', '\\', 'n', 'r', 't' }; // FIXME: GC.
+        if (Array.IndexOf<char>(escapeTails, CurChar) >= 0 || IsUpperCaseHexDigit(CurChar)) {
           Advance(false);
         }
         else {
