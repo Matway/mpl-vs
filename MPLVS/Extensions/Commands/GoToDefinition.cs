@@ -9,20 +9,12 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.TextManager.Interop;
 
-using MPLVS.Core;
 using MPLVS.Core.ParseTree;
 using MPLVS.Extensions;
 using MPLVS.ParseTree;
 
 namespace MPLVS.Commands {
   internal class GoToDefinition : VSCommandTarget<VSConstants.VSStd97CmdID> {
-    private string selectedName;
-    private int selectionEnd;
-    private string currName;
-    private int definitionBegin;
-    private int definitionEnd;
-    private bool nameFound = false;
-
     public GoToDefinition(IVsTextView vsTextView, IWpfTextView textView) : base(vsTextView, textView) { }
 
     protected override IEnumerable<VSConstants.VSStd97CmdID> SupportedCommands() {
@@ -30,136 +22,114 @@ namespace MPLVS.Commands {
     }
 
     protected override bool Execute(VSConstants.VSStd97CmdID command, uint options, IntPtr pvaIn, IntPtr pvaOut) {
-      ThreadHelper.ThrowIfNotOnUIThread();
-      if (!TextView.Selection.IsEmpty) {
-        selectedName = TextView.TextBuffer.CurrentSnapshot.GetText(TextView.Selection.SelectedSpans.First().Span);
-        selectionEnd = TextView.Selection.End.Position.Position;
-        nameFound = true;
-      }
-      else {
-        nameFound = FindTheName();
-      }
+      var name    = this.PickUpName();
+      var symbols = this.GatherSymbols(name);
 
-      if (nameFound) {
-        if (FindDefinition()) {
-          var defBegin = new SnapshotPoint(TextView.TextSnapshot, definitionBegin);
-          var defEnd   = new SnapshotPoint(TextView.TextSnapshot, definitionEnd);
-
-          // FIXME: The file is already open, so just move the caret\view.
-          Files.GetTextViewForDocument(TextView.TextBuffer.GetFileName(), defBegin, defEnd - defBegin);
-        }
-        else {
-          //vsRunningDocumentTable.                        //
-          //MplPackage.Dte.FullName.ToString();            // TODO: This is an old commented code, consider to reuse it.
-          //StreamReader streamReader = File.OpenText(""); //
-
-          FindDefinitionsFromEntireProject();
-        }
-      }
+      ShowSymbols(name, symbols);
 
       return true;
     }
 
-    private bool FindTheName() {
-      var root        = TextView.TextBuffer.ObtainOrAttachTree().Root();
-      var cursor      = TextView.Caret.Position.BufferPosition.Position;
-      var symbol      = root.YongestAncestor(cursor);
-      var predecessor = cursor < 1 ? null : root.YongestAncestor(cursor - 1); // FIXME: Do not use YongestAncestor twice, if possible.
+    private string PickUpName() {
+      return this.Selection() ?? CurrentName();
+
+      string CurrentName() {
+        var name = this.CurrentSymbol();
+
+        if (name is null) { return null; }
+
+        return new SnapshotSpan(this.TextView.TextBuffer.CurrentSnapshot, name.ToSpan()).GetText();
+      }
+    }
+
+    private Builder.Node CurrentSymbol() {
+      var caret        = this.TextView.Caret.Position.BufferPosition;
+      var surroundings = this.TextView.TextBuffer.ObtainOrAttachTree().Root().Surroundings(caret, Strategy.NearLeftFarRight);
+
+      return surroundings.AsSequence().FirstOrDefault(a => a is object && a.begin <= caret && a.end >= caret && a.IsLooksLikeName())?.ExtractName();
+    }
+
+    private string Selection() {
+      if (this.TextView.Selection.IsEmpty) { return null; }
+
+      // FIXME: We should select not just the first span, but the span near the master/main caret.
+      return this.TextView.TextSnapshot.GetText(this.TextView.Selection.SelectedSpans.First());
+    }
+
+    private IEnumerable<Definitions> GatherSymbols(string name) {
+      if (name is null) { return Array.Empty<Definitions>(); }
+
+      var symbol     = this.CurrentSymbol();
+      var nearSymbol = default(Definitions);
+      if (symbol is object) {
+        nearSymbol = this.FindDefinition(name, symbol);
+      }
 
       return
-        predecessor is object && predecessor.end == cursor && predecessor.name.StartsWith("Name")
-        ? FromSomeName(predecessor)
-        : symbol is object && FromSomeName(symbol);
-
-      bool FromSomeName(Builder.Node node) {
-        var result = false;
-
-        switch (node.name) {
-          case "Name":
-            Name(node, 0); break;
-
-          case "NameRead":
-          case "NameWrite":
-          case "NameMember":
-            Name(node, 1); break;
-
-          case "NameReadMember":
-          case "NameWriteMember":
-            Name(node, 2); break;
-        }
-
-        return result;
-
-        void Name(Builder.Node name, int offset) {
-          selectedName = TextView.TextBuffer.CurrentSnapshot.GetText(name.begin + offset, name.end - name.begin - offset);
-          selectionEnd = name.end;
-
-          result = true;
-        }
-      }
+        nearSymbol.Labels is object
+        ? new List<Definitions> { nearSymbol }
+        : DefinitionsFromAProject(name, this.TextView.TextBuffer.GetFileName());
     }
 
-    private bool FindDefinition() {
-      var root            = TextView.TextBuffer.ObtainOrAttachTree().Root();
-      var definitionFound = false;
+    // FIXME: We should distinguish name under caret and name from selection.
+    //        The name from selection always should trigger project-wide symbol search.
+    private static void ShowSymbols(string name, IEnumerable<Definitions> symbols) {
+      ThreadHelper.ThrowIfNotOnUIThread();
 
-      void Traverse(Builder.Node node) {
-        if (node.children == null) {
-          return;
-        }
+      _ = Output.Pane.Clear();
 
-        if ((node.name == "Code" || node.name == "Object" || node.name == "List") && node.end < selectionEnd) {
-          return;
-        }
-
-        if (node.name == "Label") {
-          var child = node.children[0];
-          currName  = TextView.TextBuffer.CurrentSnapshot.GetText(child.begin, child.end - child.begin);
-          if (currName == selectedName) {
-            definitionBegin = child.begin;
-            definitionEnd   = child.end;
-            definitionFound = true;
-          }
-        }
-
-        foreach (var child in node.children) {
-          if (child.begin < selectionEnd) {
-            Traverse(child);
-          }
-        }
-      }
-
-      Traverse(root);
-
-      return definitionFound;
-    }
-
-    private void FindDefinitionsFromEntireProject() {
-      var symbols             = this.DefinitionsFromAProject(TextView.TextBuffer.GetFileName());
       var howMachSymbolsFound = symbols.SelectMany(a => a.Labels).Take(2).Count();
 
       switch (howMachSymbolsFound) {
-        case 0: break;
+        case 0: {
+          _ =
+            string.IsNullOrEmpty(name)
+            ? Output.Pane.OutputString("Go to Definition: A name not found. Place the caret near a name, and try again.")
+            : Output.Pane.OutputString($"Go to Definition: Possible definitions of \"{name}\" were not found.");
+
+          Output.Activate();
+          return;
+        }
 
         case 1: {
           var group = symbols.First();
-          Files.GetTextViewForDocument(group.File, group.Labels.First().Position, this.selectedName.Length);
-          break;
+          _ = Files.GetTextViewForDocument(group.File, group.Labels.First().Position, name.Length);
+          return;
         }
 
         // 2 means that was found more than one symbol.
         case 2: {
-          ShowDefinitions(symbols);
-          break;
+          ShowDefinitions(name, symbols);
+          return;
         }
 
         default:
           Debug.Fail(howMachSymbolsFound.ToString());
-          break;
+          return;
       }
     }
 
-    private List<Definitions> DefinitionsFromAProject(string root) =>
+    private Definitions FindDefinition(string name, Builder.Node from) {
+      var location =
+        from.AsReverseSequence()
+            .Where(a => a.IsLabel())
+            .Select(a => a.LabelName())
+            .Select(a => new { Node = a, Text = this.TextView.TextBuffer.CurrentSnapshot.GetText(a.begin, a.Length()) }) // FIXME: GC.
+            .FirstOrDefault(a => a.Text == name)?.Node;
+
+      if (location is null) { return default; }
+
+      return new Definitions {
+        File = this.TextView.TextBuffer.GetFileName(), // UNDONE: What should we do if the view has no corresponding file?
+        Labels = new List<Location> {
+          new Location {
+            Line = location.line, Column = location.column, Position = location.begin
+          }
+        }
+      };
+    }
+
+    private static List<Definitions> DefinitionsFromAProject(string name, string root) =>
       Symbols.Files.TreesFromAWholeProject(root)
         .Where(a => a.Root is object)
         .Select(a => new {
@@ -167,22 +137,21 @@ namespace MPLVS.Commands {
           Labels = Symbols.Files.Labels(a.Root)
                                 .Select(b => b.LabelName())
                                 .Select(b => new { Name = Symbols.Files.Text(b, a.Input), Location = b })
-                                .Where(b => b.Name == selectedName)
+                                .Where(b => b.Name == name)
                                 .Select(b => new Location { Line = b.Location.line, Column = b.Location.column, Position = b.Location.begin })
         })
         .Where(a => a.Labels.Any())
         .Select(a => new Definitions { File = a.File, Labels = a.Labels.ToList() })
         .ToList();
 
-    private void ShowDefinitions(IEnumerable<Definitions> symbols) {
+    private static void ShowDefinitions(string name, IEnumerable<Definitions> symbols) {
       ThreadHelper.ThrowIfNotOnUIThread();
 
-      Output.Pane.Clear();
-      Output.Pane.OutputString("Possible definitions of \"" + selectedName + "\":\n");
+      _ = Output.Pane.OutputString($"Go to Definition: Possible definitions of \"{name}\":\n");
 
       foreach (var group in symbols) {
         foreach (var location in group.Labels) {
-          Output.Pane.OutputString(group.File + "(" + (location.Line + 1) + "," + (location.Column + 1) + ")\n");
+          _ = Output.Pane.OutputString($"{group.File}({location.Line + 1},{location.Column + 1})\n");
         }
       }
 

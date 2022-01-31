@@ -18,8 +18,8 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.TextManager.Interop;
 
-using MPLVS.Core;
 using MPLVS.Core.ParseTree;
+using MPLVS.ParseTree;
 
 namespace MPLVS.Extensions {
   public static class Projects {
@@ -85,9 +85,7 @@ namespace MPLVS.Extensions {
     }
 
     public static bool HasFile(this IVsProject project, string file) =>
-      ErrorHandler.Succeeded(project.IsDocumentInProject(file, out var found, new VSDOCUMENTPRIORITY[1], out var projectItemID))
-      ? found != 0
-      : false;
+      ErrorHandler.Succeeded(project.IsDocumentInProject(file, out var found, new VSDOCUMENTPRIORITY[1], out var projectItemID)) && found != 0;
 
     public static uint GetItemId(object pvar) {
       if (pvar == null  ) { return VSConstants.VSITEMID_NIL; }
@@ -203,44 +201,37 @@ namespace MPLVS.Extensions {
     /// <param name="selectionLength">The length of text to select a <paramref name="position"/> or -1 to
     /// not select any text at that location.</param>
     /// <returns>Returns the text view if the document could be opened in a text editor instance or was
-    /// already open in one.  Returns null if the reference could not be obtained.</returns>
+    /// already open in one. Returns null if the reference could not be obtained.</returns>
     public static IVsTextView GetTextViewForDocument(string filename, int position, int selectionLength) {
-      IVsTextView textView = null;
       var frame = OpenTextEditorForFile(filename);
 
-      if (frame != null) {
-        textView = VsShellUtilities.GetTextView(frame);
+      if (frame is null) { return null; }
 
-        if (textView != null && position != -1) {
-          int topLine;
+      var view = VsShellUtilities.GetTextView(frame);
 
-          if (textView.GetLineAndColumn(position, out var startLine, out var startColumn) == VSConstants.S_OK
-              && textView.GetLineAndColumn(position + selectionLength, out var endLine, out var endColumn) == VSConstants.S_OK
-              && textView.SetCaretPos(startLine, startColumn) == VSConstants.S_OK) {
-            if (selectionLength != -1) {
-              textView.SetSelection(startLine, startColumn, endLine, endColumn);
-            }
+      if (view is null || position == -1) { return view; }
 
-            // Ensure some surrounding lines are visible so that it's not right at the top
-            // or bottom of the view.
-            topLine = startLine - 5;
-
-            if (topLine < 0) { topLine = 0; }
-
-            textView.EnsureSpanVisible(new TextSpan {
-              iStartLine = topLine,
-              iStartIndex = startColumn,
-              iEndLine = endLine + 5,
-              iEndIndex = endColumn
-            });
-          }
-          else {
-            textView = null;
-          }
+      if (view.GetLineAndColumn(position, out var startLine, out var startColumn) == VSConstants.S_OK
+          && view.GetLineAndColumn(position + selectionLength, out var endLine, out var endColumn) == VSConstants.S_OK
+          && view.SetCaretPos(startLine, startColumn) == VSConstants.S_OK) {
+        if (selectionLength != -1) {
+          _ = view.SetSelection(startLine, startColumn, endLine, endColumn);
         }
+
+        // FIXME: What to do with a multi-line span?
+        _ = view.CenterLines(startLine, 1);
+        _ = view.EnsureSpanVisible(new TextSpan {
+          iStartLine  = startLine,
+          iStartIndex = startColumn,
+          iEndLine    = endLine,
+          iEndIndex   = endColumn
+        });
+      }
+      else {
+        return null;
       }
 
-      return textView;
+      return view;
     }
 
     /// <summary>
@@ -270,21 +261,55 @@ namespace MPLVS.Extensions {
   public static class Views {
     public static bool IsCaretInStringOrComment(this ITextView view) {
       var point  = view.Caret.Position.BufferPosition.Position;
-      var symbol = view.TextBuffer.ObtainOrAttachTree().Root().YongestAncestor(point);
+      var symbol = view.TextBuffer.ObtainOrAttachTree().Root().NearLeft(point);
 
-      // FIXME: Get rid of this.
-      // When caret at the end of buffer, then the last tree's element will be returned,
-      // which is always will be`EOF`.
-      // So, here we workaround this.
-      var current =
-        symbol is object && symbol.IsEof()
-        ? view.TextBuffer.ObtainOrAttachTree().Root().YongestAncestor(Math.Max(point, 1) - 1)
-        : symbol;
+      if (symbol is null) {  return false; }
 
       return
-        current is object
-        && point > current.begin
-        && (current.name == "String" || current.name == "Comment");
+        (point <= symbol.end && symbol.IsComment()) ||
+        (symbol.IsString() && (point < symbol.end || symbol.IsNonClosedString(view.TextSnapshot)));
+    }
+
+    /// <summary>Do not use this function outside of <see cref="IsCaretInStringOrComment"/></summary>
+    private static bool IsNonClosedString(this Builder.Node node, ITextSnapshot source) {
+      Debug.Assert(node.IsString(), node.name);
+      Debug.Assert(node.Length() > 0);
+      Debug.Assert(node.Next is object);
+
+      if (!node.Next.IsEof()) { return false; }
+
+      return
+        source[node.begin] == '«'
+        ? IncompleateRawString(source, node)
+        : node.Length() == 1 || source[node.end - 1] != '"' || IsEscapeStart(source, node.begin, node.end - 2);
+    }
+
+    /// <summary>Do not use this function outside of <see cref="IsNonClosedString"/></summary>
+    private static bool IncompleateRawString(ITextSnapshot source, Builder.Node node) {
+      if (source[node.end - 1] != '»') { return true; }
+
+      var position = node.end - 2;
+      var balance = 0;
+      while (node.begin < position) {
+        switch (source[position]) {
+          case '»': ++balance; break;
+          case '«': --balance; break;
+        }
+
+        if (balance < 0) { return true; }
+
+        --position;
+      }
+
+      return balance < 0;
+    }
+
+    /// <summary>Do not use this function outside of <see cref="IsNonClosedString"/></summary>
+    private static bool IsEscapeStart(ITextSnapshot source, int begin, int index) {
+      var position = index;
+      while (begin < position && source[position] == '\\') { --position; }
+
+      return (index - position) % 2 == 1;
     }
   }
 
@@ -603,5 +628,52 @@ namespace MPLVS.Extensions {
         }
       }
     }
+  }
+
+  public static class Collections {
+    public static Three<T> LastThree<T>(this IEnumerable<T> xs) where T : IEquatable<T> {
+      var result = new Three<T> {
+        ThirdFromEnd  = default,
+        SecontFromEnd = default,
+        FirstFromEnd  = default,
+      };
+
+      foreach (var x in xs) {
+        result.ThirdFromEnd  = result.SecontFromEnd;
+        result.SecontFromEnd = result.FirstFromEnd;
+        result.FirstFromEnd  = x;
+      }
+
+      return result;
+    }
+
+    public struct Three<T> where T : IEquatable<T> {
+      public T ThirdFromEnd;
+      public T SecontFromEnd;
+      public T FirstFromEnd;
+
+      public IEnumerable<T> AsSequence() {
+        yield return this.ThirdFromEnd;
+        yield return this.SecontFromEnd;
+        yield return this.FirstFromEnd;
+      }
+    }
+  }
+
+  public static class Nodes {
+    public static Span NameSpan(this Builder.Node a) => a.ExtractName().ToSpan();
+
+    public static Builder.Node ExtractName(this Builder.Node a) {
+      return
+        a.IsName()
+        ? a
+        : a.IsNameMember() || a.IsNameRead() || a.IsNameWrite()
+          ? new Builder.Node { begin = a.begin + 1, column = a.column + 1, end = a.end, line = a.line, name = "Name", Previous = a.Previous, Next = a.Next }
+          : a.IsNameReadMember() || a.IsNameWriteMember()
+            ? new Builder.Node { begin = a.begin + 2, column = a.column + 2, end = a.end, line = a.line, name = "Name", Previous = a.Previous, Next = a.Next }
+            : throw new ArgumentException(nameof(a));
+    }
+
+    public static Span ToSpan(this Builder.Node node) => Span.FromBounds(node.begin, node.end);
   }
 }

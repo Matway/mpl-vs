@@ -6,35 +6,42 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Tagging;
 
-using MPLVS.Core;
 using MPLVS.Core.ParseTree;
 using MPLVS.Extensions;
 using MPLVS.ParseTree;
 
 namespace MPLVS.ScopeHighlighting {
-  internal sealed class Tagger : StepByStepTagger<ITextMarkerTag> {
-    private readonly ITextView textView;
-    private static readonly TextMarkerTag tag = new TextMarkerTag("MplScope");
-    private Builder.Node last;
-
+  internal sealed class Tagger : ITagger<Tag> {
     public Tagger(ITextView view) {
-      this.textView = view;
+      this.View = view;
 
-      this.textView.Caret.PositionChanged += OnCaretPositionChanged;
-      this.textView.TextBuffer.Changed    += OnBufferChanged;
+      this.View.Caret.PositionChanged += this.OnCaretPositionChanged;
+      this.View.TextBuffer.Changed    += this.OnBufferChanged;
+      //this.textView.LayoutChanged += this.TextView_LayoutChanged;
 
-      OnCaretPositionChanged(null, null);
+      this.OnCaretPositionChanged(null, null);
     }
 
-    public override event EventHandler<SnapshotSpanEventArgs> TagsChanged;
+    private void TextView_LayoutChanged(object sender, TextViewLayoutChangedEventArgs e) => this.OnCaretPositionChanged(null, null);
 
-    protected override IEnumerable<ITagSpan<ITextMarkerTag>> Tags(Span span) =>
-      AllTags().Where(a => a.OverlapsWith(span)).Select(b => {
-        var snapshot = new SnapshotSpan(textView.TextSnapshot, b.Start, b.End - b.Start);
-        return new TagSpan<ITextMarkerTag>(snapshot, tag);
+    public event EventHandler<SnapshotSpanEventArgs> TagsChanged;
+
+    public IEnumerable<ITagSpan<Tag>> GetTags(NormalizedSnapshotSpanCollection spans) {
+      this.OnCaretPositionChanged(null, null);
+      return this.Tags(new Span(0, this.View.TextSnapshot.Length));
+    }
+
+    private IEnumerable<ITagSpan<Tag>> Tags(Span span) {
+      var text = this.View.TextSnapshot;
+      return this.AllTags().Where(a => a.OverlapsWith(span)).Select(b => {
+        var snapshot = new SnapshotSpan(text, b.Start, b.End - b.Start);
+        return new TagSpan<Tag>(snapshot, Tag);
       });
+    }
 
     private IEnumerable<Span> AllTags() {
+      var last = this.Last;
+
       if (last is null) {
         yield break;
       }
@@ -52,56 +59,29 @@ namespace MPLVS.ScopeHighlighting {
     }
 
     private void OnBufferChanged(object sender, TextContentChangedEventArgs info) =>
-      OnCaretPositionChanged(null, null);
+      this.OnCaretPositionChanged(null, null);
 
     private void OnCaretPositionChanged(object sender, CaretPositionChangedEventArgs info) {
-      var unnormalizedPoint =
-        textView.Caret.Position.Point
-        .GetPoint(textView.TextBuffer, textView.Caret.Position.Affinity);
+      var current = this.View.TextBuffer.ObtainOrAttachTree().Root()
+                                        .AllAncestors(this.View.Caret.Position.BufferPosition)
+                                        .LastThree().AsSequence() // TODO: Maybe the last two will be enough.
+                                        .LastOrDefault(a => a is object && a.IsScope());
 
-      if (!unnormalizedPoint.HasValue && this.last is null) {
-        return;
-      }
+      if (ReferenceEquals(this.Last, current)) { return; }
 
-      if (!unnormalizedPoint.HasValue) {
-        Notify(null);
-        return;
-      }
-
-      var point = Normalize(unnormalizedPoint);
-
-      var symbols =
-        this.textView.TextBuffer
-        .ObtainOrAttachTree().Root()
-        .AllAncestors(point.Position)
-        .Where(a => a.IsScope()); // Filter out trailing trash like a string\comment etc.
-
-      var current = symbols.LastOrDefault();
-
-      var caretOoutsideOfScope =
-        current is object                        // TODO: Explain what is going on here.
-        && unnormalizedPoint.Value > point       //
-        && current.children.Last().IsScopeEnd(); //
-
-      if (caretOoutsideOfScope) {
-        current = null;
-      }
-
-      if (!object.ReferenceEquals(last, current)) {
-        Notify(current);
-      }
+      this.Notify(current);
     }
 
     private void Notify(Builder.Node node) {
-      this.last = node;
+      this.Last = node;
 
-      var snapshot = new SnapshotSpan(textView.TextBuffer.CurrentSnapshot, 0, textView.TextBuffer.CurrentSnapshot.Length);
-      TagsChanged?.Invoke(this, new SnapshotSpanEventArgs(snapshot));
+      var current = this.View.TextBuffer.CurrentSnapshot;
+      var changed = new SnapshotSpan(current, 0, current.Length);
+      TagsChanged?.Invoke(this, new SnapshotSpanEventArgs(changed));
     }
 
-    private static SnapshotPoint Normalize(SnapshotPoint? point) =>
-      point.Value == point.Value.Snapshot.Length && point.Value != 0
-      ? point.Value - 1
-      : point.Value;
+    private Builder.Node Last;
+    private readonly ITextView View;
+    internal static readonly Tag Tag = new Tag("MplScope", "MplScope");
   }
 }

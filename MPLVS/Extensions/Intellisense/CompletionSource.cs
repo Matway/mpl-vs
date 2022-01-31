@@ -7,7 +7,6 @@ using Microsoft.VisualStudio.Language.Intellisense;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text;
 
-using MPLVS.Core;
 using MPLVS.Core.ParseTree;
 using MPLVS.Extensions;
 
@@ -59,7 +58,7 @@ namespace MPLVS.Intellisense {
            .SelectMany(a => a.Names.Select(Label => new { a.File, Label }))
            .Concat(Constants.Builtins.Select(a => new { File = "Built-in", Label = a })) // FIXME: GC.
            .OrderBy(a => a.Label)
-           .GroupBy(a => a.Label)
+           .GroupBy(a => a.Label) // FIXME: GC.
            .Select(a => new Symbol { Name = a.Key, Origins = string.Join("\n", a.Select(b => b.File).OrderBy(b => b)) });
 
     private ITrackingSpan FindTokenSpanAtPosition(ITrackingPoint point, ICompletionSession session) {

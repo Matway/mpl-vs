@@ -9,7 +9,6 @@ using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Editor.OptionsExtensionMethods;
 using Microsoft.VisualStudio.TextManager.Interop;
 
-using MPLVS.Core;
 using MPLVS.Core.ParseTree;
 using MPLVS.ParseTree;
 

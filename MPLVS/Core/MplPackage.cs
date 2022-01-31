@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 
 using Microsoft.VisualStudio;
+using Microsoft.VisualStudio.ComponentModelHost;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 
@@ -50,16 +51,6 @@ namespace MPLVS {
   [ProvideLanguageExtension(typeof(MplLanguage), ".smart")]
   [ProvideLanguageExtension(typeof(MplLanguage), ".fast")]
   [ProvideLanguageExtension(typeof(MplLanguage), ".easy")]
-  [ProvideEditorFactory(typeof(EditorFactory),
-                        110,
-                        CommonPhysicalViewAttributes = (int)__VSPHYSICALVIEWATTRIBUTES.PVA_None,
-                        TrustLevel = __VSEDITORTRUSTLEVEL.ETL_AlwaysTrusted)]
-  [ProvideEditorLogicalView(typeof(EditorFactory), VSConstants.LOGVIEWID.TextView_string, IsTrusted = true)]
-  [ProvideEditorExtension(typeof(EditorFactory), Constants.MPLFileExtension, 1000)]
-  [ProvideEditorExtension(typeof(EditorFactory), ".smart", 1000)]
-  [ProvideEditorExtension(typeof(EditorFactory), ".fast", 1000)]
-  [ProvideEditorExtension(typeof(EditorFactory), ".easy", 1000)]
-  [ProvideEditorExtension(typeof(EditorFactory), ".*", 2, NameResourceID = 110)]
   public sealed class MplPackage : AsyncPackage {
     public static bool completionSession = false; // Get rid of this.
 
@@ -68,6 +59,12 @@ namespace MPLVS {
     private static Options options;
 
     internal LanguageSettings LanguageSettings { get; private set; }
+
+    public T GetService<T>() where T : class =>
+      this.GetService(typeof(T)) as T;
+
+    public T GetComponentModelService<T>() where T : class =>
+      (this.GetService<SComponentModel>() as IComponentModel).GetService<T>();
 
     public static Options Options {
       get {
@@ -99,10 +96,6 @@ namespace MPLVS {
       var serviceContainer = this as IServiceContainer;
       Language = new MplLanguage(this);
       serviceContainer.AddService(typeof(MplLanguage), Language, true);
-      //serviceContainer.AddService(typeof(MplLanguage), callback, true);
-
-      var editorFactory = new EditorFactory(this, typeof(MplLanguage).GUID);
-      RegisterEditorFactory(editorFactory);
     }
 
     private static Options LoadPackage() {

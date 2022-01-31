@@ -3,6 +3,7 @@ using System.ComponentModel;
 using Microsoft.VisualStudio.Shell;
 
 namespace MPLVS {
+  [DesignerCategory("")] // NOTE: W\o this attribute, vs will try, and will fail to show this *.cs file in a designer.
   public class Options : DialogPage {
     public enum LineEnding { Unix, Windows, Document }
 

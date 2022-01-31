@@ -10,6 +10,10 @@
       <Color Name="MplConstant">
         <Foreground Type="CT_RAW" Source="FF000000" />
       </Color>
+      <Color Name="MplCurrentSymbol">
+        <Background Type="CT_RAW" Source="FFFFFFAA" />
+        <Foreground Type="CT_RAW" Source="FF000000" />
+      </Color>
       <Color Name="MplLabel">
         <Foreground Type="CT_RAW" Source="FF2B91AF" />
       </Color>
@@ -32,6 +36,10 @@
       </Color>
       <Color Name="MplConstant">
         <Foreground Type="CT_RAW" Source="FFB5CEA8" />
+      </Color>
+      <Color Name="MplCurrentSymbol">
+        <Background Type="CT_RAW" Source="FF555511" />
+        <Foreground Type="CT_RAW" Source="FFFFFFFF" />
       </Color>
       <Color Name="MplLabel">
         <Foreground Type="CT_RAW" Source="FF86C691" />

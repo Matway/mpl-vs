@@ -6,7 +6,6 @@ using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.TextManager.Interop;
 using Microsoft.VisualStudio.Utilities;
 
-using MPLVS.Core;
 using MPLVS.Symbols;
 
 namespace MPLVS.Commands {
@@ -28,13 +27,14 @@ namespace MPLVS.Commands {
 
       OpenedBuffers.VsTextViewCreated(textViewAdapter, textView);
 
+      textView.ObtainOrAttachProperty(() => new BraceCompletion(textViewAdapter, textView));
       textView.ObtainOrAttachProperty(() => new CommentSelection(textViewAdapter, textView));
       textView.ObtainOrAttachProperty(() => new FormatDocument(textViewAdapter, textView));
       textView.ObtainOrAttachProperty(() => new GoToBrace(textViewAdapter, textView));
-      textView.ObtainOrAttachProperty(() => new BraceCompletion(textViewAdapter, textView));
+      textView.ObtainOrAttachProperty(() => new GoToDefinition(textViewAdapter, textView));
+      textView.ObtainOrAttachProperty(() => new GoToFile(textViewAdapter, textView));
       textView.ObtainOrAttachProperty(() => new Guillemets.AngularQuotes(textViewAdapter, textView));
       textView.ObtainOrAttachProperty(() => new Guillemets.Backspace(textViewAdapter, textView));
-      textView.ObtainOrAttachProperty(() => new GoToDefinition(textViewAdapter, textView));
     }
   }
 }

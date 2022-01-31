@@ -55,7 +55,7 @@ namespace MPLVS.Commands {
       _ = ExecuteNext(nCmdID, nCmdexecopt, pvaIn, pvaOut);
 
       var caretPoint = TextView.Caret.Position.BufferPosition;
-      TextView.TextBuffer.Insert(TextView.Caret.Position.BufferPosition.Position, Core.ParseTree.Utils.Braces[typedChar].ToString());
+      TextView.TextBuffer.Insert(TextView.Caret.Position.BufferPosition.Position, NodeUtils.Braces[typedChar].ToString());
       TextView.Caret.MoveTo(caretPoint.TranslateTo(TextView.TextSnapshot, PointTrackingMode.Negative));
 
       return true;

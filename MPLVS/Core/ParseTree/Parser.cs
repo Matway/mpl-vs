@@ -2,18 +2,52 @@
 // REx command line: mplGrammar_2017Jul01_reduced-extended.ebnf -tree -ll 2 -faster -csharp
 
 using System;
-using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 
 namespace MPLVS {
   public class Parser {
+    public struct CompoundStart {
+      public string Name;
+      public int Begin, Line, Column;
+
+      public CompoundStart(string name, int begin, int line, int column) {
+        this.Name   = name;
+        this.Begin  = begin;
+        this.Line   = line;
+        this.Column = column;
+      }
+    }
+
+    public struct CompoundEnd {
+      public string Name;
+      public int End;
+
+      public CompoundEnd(string name, int end) {
+        this.Name = name;
+        this.End  = end;
+      }
+    }
+
+    public struct TerminalStart {
+      public string Name;
+      public int Begin, End, Line, Column;
+
+      public TerminalStart(string name, int begin, int end, int line, int column) {
+        this.Name   = name;
+        this.Begin  = begin;
+        this.End    = end;
+        this.Line   = line;
+        this.Column = column;
+      }
+    }
+
     public event EventHandler Reset;
     public event EventHandler Compleate;
-    public event EventHandler<(string name, int begin, int line, int column)> StartCompound;
-    public event EventHandler<(string name, int end)> EndCompound;
-    public event EventHandler<(string name, int begin, int end, int line, int column)> Terminal;
+    public event EventHandler<CompoundStart> StartCompound;
+    public event EventHandler<CompoundEnd> EndCompound;
+    public event EventHandler<TerminalStart> Terminal;
     public event EventHandler<SyntaxError> PushError;
 
     public class SyntaxError {
@@ -123,7 +157,7 @@ namespace MPLVS {
             ++Pos.Line;
             Pos.LineBegin = ++Pos.Cursor;
             if (lineAsTerminal) {
-              Terminal?.Invoke(this, ("LF", start.Cursor, Pos.Cursor, start.Line, start.Column));
+              Terminal?.Invoke(this, new TerminalStart("LF", start.Cursor, Pos.Cursor, start.Line, start.Column));
             }
             break;
           }
@@ -134,7 +168,7 @@ namespace MPLVS {
               ++Pos.Line;
               Pos.LineBegin = Pos.Cursor += 2;
               if (lineAsTerminal) {
-                Terminal?.Invoke(this, ("CRLF", start.Cursor, Pos.Cursor, start.Line, start.Column));
+                Terminal?.Invoke(this, new TerminalStart("CRLF", start.Cursor, Pos.Cursor, start.Line, start.Column));
               }
             }
             else {
@@ -153,19 +187,19 @@ namespace MPLVS {
     }
 
     public void ParseProgramWithEOF() {
-      StartCompound?.Invoke(this, ("ProgramWithEOF", Pos.Cursor, Pos.Line, Pos.Column));
+      StartCompound?.Invoke(this, new CompoundStart("ProgramWithEOF", Pos.Cursor, Pos.Line, Pos.Column));
       if (Size != 0) {
         ParseProgram(() => HasInput);
       }
 
-      Terminal?.Invoke(this, ("EOF", Size, Size, Pos.Line, Pos.Column));
-      EndCompound?.Invoke(this, ("ProgramWithEOF", Size));
+      Terminal?.Invoke(this, new TerminalStart("EOF", Size, Size, Pos.Line, Pos.Column));
+      EndCompound?.Invoke(this, new CompoundEnd("ProgramWithEOF", Size));
 
       Compleate?.Invoke(this, null);
     }
 
     private void ParseProgram(Func<bool> terminatorIsNotReached) {
-      StartCompound?.Invoke(this, ("Program", Pos.Cursor, Pos.Line, Pos.Column));
+      StartCompound?.Invoke(this, new CompoundStart("Program", Pos.Cursor, Pos.Line, Pos.Column));
       if (HasInput && IsWS(CurChar)) {
         ParseWhitespaces();
       }
@@ -189,15 +223,15 @@ namespace MPLVS {
         }
       }
 
-      EndCompound?.Invoke(this, ("Program", Pos.Cursor));
+      EndCompound?.Invoke(this, new CompoundEnd("Program", Pos.Cursor));
 
       void ParseWhitespaces() {
-        StartCompound?.Invoke(this, ("Whitespaces", Pos.Cursor, Pos.Line, Pos.Column));
+        StartCompound?.Invoke(this, new CompoundStart("Whitespaces", Pos.Cursor, Pos.Line, Pos.Column));
         while (HasInput && IsWS(CurChar)) {
           AdvanceAtCurrent();
         }
 
-        EndCompound?.Invoke(this, ("Whitespaces", Pos.Cursor));
+        EndCompound?.Invoke(this, new CompoundEnd("Whitespaces", Pos.Cursor));
       }
     }
 
@@ -206,7 +240,7 @@ namespace MPLVS {
       ch == '\t' || ch == '\n' || ch == '\r' || ch == ' ';
 
     private void ParseExpression() {
-      StartCompound?.Invoke(this, ("Expression", Pos.Cursor, Pos.Line, Pos.Column));
+      StartCompound?.Invoke(this, new CompoundStart("Expression", Pos.Cursor, Pos.Line, Pos.Column));
 
       if (CurIsAnyOf("#(,.[{")) {
         ParseNonWSSeparableExpression();
@@ -215,11 +249,11 @@ namespace MPLVS {
         ParseWSSeparableExpression();
       }
 
-      EndCompound?.Invoke(this, ("Expression", Pos.Cursor));
+      EndCompound?.Invoke(this, new CompoundEnd("Expression", Pos.Cursor));
     }
 
     private void ParseWSSeparableExpression() {
-      StartCompound?.Invoke(this, ("WSSeparableExpression", Pos.Cursor, Pos.Line, Pos.Column));
+      StartCompound?.Invoke(this, new CompoundStart("WSSeparableExpression", Pos.Cursor, Pos.Line, Pos.Column));
       var cur = CurChar;
       if (cur == '"' || cur == '«') {
         ParseString();
@@ -252,14 +286,14 @@ namespace MPLVS {
         Error(start.Cursor, Pos.Cursor, "WSSeparableExpression", "There is nothing that WSSeparableExpression can contain");
       }
 
-      EndCompound?.Invoke(this, ("WSSeparableExpression", Pos.Cursor));
+      EndCompound?.Invoke(this, new CompoundEnd("WSSeparableExpression", Pos.Cursor));
 
       void SkipNonWhiteSpaces() =>
         Skip(a => a != ' ' && a != '\n' && a != '\r'); // FIXME: Should we check the tabulation too?
     }
 
     private void ParseNonWSSeparableExpression() {
-      StartCompound?.Invoke(this, ("NonWSSeparableExpression", Pos.Cursor, Pos.Line, Pos.Column));
+      StartCompound?.Invoke(this, new CompoundStart("NonWSSeparableExpression", Pos.Cursor, Pos.Line, Pos.Column));
       switch (CurChar) {
         case '{': ParseBlock("Object", "'{'", "'}'", '}'); break;
         case '(': ParseBlock("List",   "'('", "')'", ')'); break;
@@ -268,14 +302,14 @@ namespace MPLVS {
         case '.': ParseMemberNameExpression(); break;
         case '#': ParseComment();              break;
 
-        case ',': Terminal?.Invoke(this, ("','", Pos.Cursor, ++Pos.Cursor, Pos.Line, Pos.Column - 1)); break; // TODO: Get rid of this.
+        case ',': Terminal?.Invoke(this, new TerminalStart("','", Pos.Cursor, ++Pos.Cursor, Pos.Line, Pos.Column - 1)); break; // TODO: Get rid of this.
 
         default:
           Error("NonWSSeparableExpression", "There is nothing that NonWSSeparableExpression can contain");
           ++Pos.Cursor;
           break;
       }
-      EndCompound?.Invoke(this, ("NonWSSeparableExpression", Pos.Cursor));
+      EndCompound?.Invoke(this, new CompoundEnd("NonWSSeparableExpression", Pos.Cursor));
     }
 
     private void ParseBlock(string symbol, string starter, string terminator, char terminatorSign) =>
@@ -283,28 +317,28 @@ namespace MPLVS {
 
     private void ParseLabel(PositionInfo start) {
       ParseBlock("Label", "':'", "';'", ';', start, () => {
-        Terminal?.Invoke(this, ("Name", start.Cursor, Pos.Cursor, start.Line, start.Column));
+        Terminal?.Invoke(this, new TerminalStart("Name", start.Cursor, Pos.Cursor, start.Line, start.Column));
       });
     }
 
     private void ParseBlock(string symbol, string starter, string terminator, char terminatorSign, PositionInfo start, Action f) {
-      StartCompound?.Invoke(this, (symbol, start.Cursor, start.Line, start.Column));
+      StartCompound?.Invoke(this, new CompoundStart(symbol, start.Cursor, start.Line, start.Column));
       f();
 
-      Terminal?.Invoke(this, (starter, Pos.Cursor, ++Pos.Cursor, Pos.Line, Pos.Column - 1));
+      Terminal?.Invoke(this, new TerminalStart(starter, Pos.Cursor, ++Pos.Cursor, Pos.Line, Pos.Column - 1));
       ParseProgram(() => HasInput && CurChar != terminatorSign);
       if (HasInput && CurChar == terminatorSign) {
-        Terminal?.Invoke(this, (terminator, Pos.Cursor, ++Pos.Cursor, Pos.Line, Pos.Column - 1));
+        Terminal?.Invoke(this, new TerminalStart(terminator, Pos.Cursor, ++Pos.Cursor, Pos.Line, Pos.Column - 1));
       }
       else {
         Error(start.Cursor, symbol, FormatExpected("A tail of the " + symbol + " with the " + symbol + " terminator '" + terminatorSign + '\'', "The unterminated " + symbol));
       }
 
-      EndCompound?.Invoke(this, (symbol, Pos.Cursor));
+      EndCompound?.Invoke(this, new CompoundEnd(symbol, Pos.Cursor));
     }
 
     private void ParseMemberNameExpression() {
-      StartCompound?.Invoke(this, ("MemberNameExpression", Pos.Cursor, Pos.Line, Pos.Column));
+      StartCompound?.Invoke(this, new CompoundStart("MemberNameExpression", Pos.Cursor, Pos.Line, Pos.Column));
       var start = Pos;
       ++Pos.Cursor; // "."
       if (HasInput) {
@@ -312,40 +346,40 @@ namespace MPLVS {
           case '@':
             ++Pos.Cursor;
             ParseMemberName();
-            Terminal?.Invoke(this, ("NameReadMember", start.Cursor, Pos.Cursor, start.Line, start.Column));
+            Terminal?.Invoke(this, new TerminalStart("NameReadMember", start.Cursor, Pos.Cursor, start.Line, start.Column));
             break;
           case '!':
             ++Pos.Cursor;
             ParseMemberName();
-            Terminal?.Invoke(this, ("NameWriteMember", start.Cursor, Pos.Cursor, start.Line, start.Column));
+            Terminal?.Invoke(this, new TerminalStart("NameWriteMember", start.Cursor, Pos.Cursor, start.Line, start.Column));
             break;
           default:
             ParseMemberName();
-            Terminal?.Invoke(this, ("NameMember", start.Cursor, Pos.Cursor, start.Line, start.Column));
+            Terminal?.Invoke(this, new TerminalStart("NameMember", start.Cursor, Pos.Cursor, start.Line, start.Column));
             break;
         }
       }
 
-      EndCompound?.Invoke(this, ("MemberNameExpression", Pos.Cursor));
+      EndCompound?.Invoke(this, new CompoundEnd("MemberNameExpression", Pos.Cursor));
     }
 
     private void ParseNameExpression() {
-      StartCompound?.Invoke(this, ("NameExpression", Pos.Cursor, Pos.Line, Pos.Column));
+      StartCompound?.Invoke(this, new CompoundStart("NameExpression", Pos.Cursor, Pos.Line, Pos.Column));
       switch (CurChar) {
         case '@': parse("NameRead");  break;
         case '!': parse("NameWrite"); break;
       }
-      EndCompound?.Invoke(this, ("NameExpression", Pos.Cursor));
+      EndCompound?.Invoke(this, new CompoundEnd("NameExpression", Pos.Cursor));
 
       void parse(string access) {
         var start = Pos;
         ++Pos.Cursor; // "@" or "!".
         if (HasInput && (CurIsAnyOf("!+-.@") || IsMplLetter(CurChar))) {
           ParseName();
-          Terminal?.Invoke(this, (access, start.Cursor, Pos.Cursor, start.Line, start.Column));
+          Terminal?.Invoke(this, new TerminalStart(access, start.Cursor, Pos.Cursor, start.Line, start.Column));
         }
         else {
-          Terminal?.Invoke(this, ("Name", start.Cursor, Pos.Cursor, start.Line, start.Column));
+          Terminal?.Invoke(this, new TerminalStart("Name", start.Cursor, Pos.Cursor, start.Line, start.Column));
         }
       }
     }
@@ -363,13 +397,13 @@ namespace MPLVS {
         else {
           ++Pos.Cursor; // Closing of the string '"'.
         }
-        Terminal?.Invoke(this, ("String", start.Cursor, Pos.Cursor, start.Line, start.Column));
+        Terminal?.Invoke(this, new TerminalStart("String", start.Cursor, Pos.Cursor, start.Line, start.Column));
       }
       else {
         var start = Pos;
         ParseRawString();
         // NOTE: We dubbed it a string, but not a raw-string, so the other extension's parts will not differentiate them.
-        Terminal?.Invoke(this, ("String", start.Cursor, Pos.Cursor, start.Line, start.Column));
+        Terminal?.Invoke(this, new TerminalStart("String", start.Cursor, Pos.Cursor, start.Line, start.Column));
       }
 
       void ParseStringBody() {
@@ -396,8 +430,8 @@ namespace MPLVS {
           return;
         }
 
-        ReadOnlySpan<char> escapeTails = stackalloc char[] { '\"', '\\', 'n', 'r', 't' };
-        if (escapeTails.IndexOf(CurChar) >= 0 || IsUpperCaseHexDigit(CurChar)) {
+        char[] escapeTails = { '\"', '\\', 'n', 'r', 't' }; // FIXME: GC.
+        if (Array.IndexOf<char>(escapeTails, CurChar) >= 0 || IsUpperCaseHexDigit(CurChar)) {
           Advance(false);
         }
         else {
@@ -467,7 +501,7 @@ namespace MPLVS {
         ParseInteger(start, signed);
       }
       else if (isOk) {
-        Terminal?.Invoke(this, ("Number", start.Cursor, Pos.Cursor, start.Line, start.Column));
+        Terminal?.Invoke(this, new TerminalStart("Number", start.Cursor, Pos.Cursor, start.Line, start.Column));
       }
     }
 
@@ -487,7 +521,7 @@ namespace MPLVS {
       }
 
       if (isOk) {
-        Terminal?.Invoke(this, ("Number", start.Cursor, Pos.Cursor, start.Line, start.Column));
+        Terminal?.Invoke(this, new TerminalStart("Number", start.Cursor, Pos.Cursor, start.Line, start.Column));
       }
 
       void ParseSuffix(string messageOnError) {
@@ -560,7 +594,7 @@ namespace MPLVS {
       }
 
       if (isOk) {
-        Terminal?.Invoke(this, ("Real", start.Cursor, Pos.Cursor, start.Line, start.Column));
+        Terminal?.Invoke(this, new TerminalStart("Real", start.Cursor, Pos.Cursor, start.Line, start.Column));
       }
 
       void ParseExponent() {
@@ -609,7 +643,7 @@ namespace MPLVS {
         }
       }
 
-      Terminal?.Invoke(this, ("Comment", start.Cursor, lastNonWS, start.Line, start.Column));
+      Terminal?.Invoke(this, new TerminalStart("Comment", start.Cursor, lastNonWS, start.Line, start.Column));
     }
 
     private void ParseMemberName() {
@@ -642,9 +676,9 @@ namespace MPLVS {
         ParseLabel(start);
       }
       else {
-        StartCompound?.Invoke(this, ("NameExpression", start.Cursor, start.Line, start.Column));
-        Terminal?.Invoke(this, ("Name", start.Cursor, Pos.Cursor, start.Line, start.Column));
-        EndCompound?.Invoke(this, ("NameExpression", Pos.Cursor));
+        StartCompound?.Invoke(this, new CompoundStart("NameExpression", start.Cursor, start.Line, start.Column));
+        Terminal?.Invoke(this, new TerminalStart("Name", start.Cursor, Pos.Cursor, start.Line, start.Column));
+        EndCompound?.Invoke(this, new CompoundEnd("NameExpression", Pos.Cursor));
       }
     }
 
@@ -675,9 +709,9 @@ namespace MPLVS {
 
     private static bool IsHexDigit(char ch) => IsUpperCaseHexDigit(ch) || ch >= 'a' && ch <= 'f';
 
-    private static bool IsMplLetter(char ch) => !IsDigit(ch) && "\t\n\r !\"#()+,-.:;@[]{}".IndexOf(ch) < 0;
+    public static bool IsMplLetter(char ch) => !IsDigit(ch) && "\t\n\r !\"#()+,-.:;@[]{}".IndexOf(ch) < 0;
 
-    private static bool IsDigit(char ch) => ch >= '0' && ch <= '9';
+    public static bool IsDigit(char ch) => ch >= '0' && ch <= '9';
 
     private void Error(int begin, int end, string token, string message) =>
       PushError?.Invoke(this, new SyntaxError(begin, end, token, message));
