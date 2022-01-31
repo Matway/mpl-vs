@@ -61,15 +61,11 @@
     <Compile Include="Core\Classification\ClassificationTypes.cs" />
     <Compile Include="Core\Classification\Classifier.cs" />
     <Compile Include="Core\Classification\ClassifierProvider.cs" />
-    <Compile Include="Core\Classification\ColorizationListener.cs" />
     <Compile Include="Core\Constants.cs" />
-    <Compile Include="Core\EditorFactory.cs" />
     <Compile Include="Core\LanguageService\LanguageSettings.cs" />
     <Compile Include="Core\LanguageService\MplLanguage.cs" />
     <Compile Include="Core\MplPackage.cs" />
-    <Compile Include="Core\Options\Options.cs">
-      <SubType>Component</SubType>
-    </Compile>
+    <Compile Include="Core\Options\Options.cs" />
     <Compile Include="Core\ParseTree\Parser.cs" />
     <Compile Include="Core\ParseTree\TreeBuilder.cs" />
     <Compile Include="Core\ParseTree\Utils.cs" />
@@ -84,8 +80,12 @@
     <Compile Include="Extensions\Commands\Guillemets\Backspace.cs" />
     <Compile Include="Extensions\Commands\Guillemets\Quotes.cs" />
     <Compile Include="Extensions\Commands\VSCommandTarget.cs" />
-    <Compile Include="Extensions\Folding\Provider.cs" />
-    <Compile Include="Extensions\Folding\Tagger.cs" />
+    <Compile Include="Extensions\Folding\Blocks\Provider.cs" />
+    <Compile Include="Extensions\Folding\Blocks\Tagger.cs" />
+    <Compile Include="Extensions\Folding\Comments\Provider.cs" />
+    <Compile Include="Extensions\Folding\Comments\Tagger.cs" />
+    <Compile Include="Extensions\Folding\Text\Provider.cs" />
+    <Compile Include="Extensions\Folding\Text\Tagger.cs" />
     <Compile Include="Extensions\Folding\Tooltip.cs" />
     <Compile Include="Extensions\Folding\Utils.cs" />
     <Compile Include="Extensions\Intellisense\CompletionCommandHandler.cs" />
@@ -98,11 +98,17 @@
     <Compile Include="Extensions\ScopeHighlighting\Tagger.cs" />
     <Compile Include="Extensions\SmartIndent\Indentation.cs" />
     <Compile Include="Extensions\SmartIndent\Provider.cs" />
-    <Compile Include="Extensions\StepByStepTagger.cs" />
+    <Compile Include="Extensions\SymbolHighlighting\FormatDefinitions.cs" />
+    <Compile Include="Extensions\SymbolHighlighting\Provider.cs" />
+    <Compile Include="Extensions\SymbolHighlighting\Tagger.cs" />
     <Compile Include="Extensions\Symbols\OpenedBuffers.cs" />
     <Compile Include="Extensions\Symbols\SymbolCollector.cs" />
     <Compile Include="Extensions\SyntaxErrorHightlighting\Provider.cs" />
     <Compile Include="Extensions\SyntaxErrorHightlighting\Tagger.cs" />
+    <Compile Include="Extensions\Tag.cs" />
+    <Compile Include="Extensions\Taggers.cs" />
+    <Compile Include="Extensions\TextStructure\Navigator.cs" />
+    <Compile Include="Extensions\TextStructure\Provider.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -119,6 +125,7 @@
     <Reference Include="PresentationFramework" />
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers">
@@ -143,12 +150,15 @@
     <PackageReference Include="Microsoft.VisualStudio.SDK.Analyzers">
       <Version>16.7.9</Version>
     </PackageReference>
+    <PackageReference Include="Microsoft.VisualStudio.Text.UI">
+      <Version>15.4.27004</Version>
+    </PackageReference>
     <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers">
       <Version>16.8.55</Version>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.0.2120-preview2">
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.0.5232">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>

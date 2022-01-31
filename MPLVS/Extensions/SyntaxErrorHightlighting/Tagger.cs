@@ -6,10 +6,8 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Adornments;
 using Microsoft.VisualStudio.Text.Tagging;
 
-using MPLVS.Core;
-
 namespace MPLVS.Extensions.SyntaxErrorHightlighting {
-  internal class Tagger : StepByStepTagger<IErrorTag> {
+  internal class Tagger : HorizontalTags<IErrorTag> {
     private readonly ITextBuffer buffer;
 
     public Tagger(ITextBuffer buffer) {
@@ -23,7 +21,7 @@ namespace MPLVS.Extensions.SyntaxErrorHightlighting {
 
       /*
       ................   If we have the snapshot-span
-       # #  ##   #       which includes this tags
+       # #  ##   #       which includes these tags
       .#.#..##...#....   then we say that we have this state
 
       An example:

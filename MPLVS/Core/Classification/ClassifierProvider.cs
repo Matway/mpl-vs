@@ -7,44 +7,34 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Utilities;
 
-using MPLVS.Core;
-
 namespace MPLVS.Classification {
-  /// <summary>
-  /// This class causes a classifier to be added to the set of classifiers. Since
-  /// the content type is set to "MPL", this classifier applies to all .mpl files
-  /// </summary>
   [Export(typeof(IClassifierProvider))]
   [ContentType(Constants.MPLContentType)]
   internal class MplClassifierProvider : IClassifierProvider {
-    /// <summary>
-    /// Import the classification registry to be used for getting a reference
-    /// to the custom classification type later.
-    /// </summary>
     [Import]
-    private readonly IClassificationTypeRegistryService classificationRegistry = null; // Set via MEF
+    private readonly IClassificationTypeRegistryService ClassificationRegistry = null;
 
-    internal static IClassificationTypeRegistryService ClassificationRegistry = null;
-    internal static ImmutableList<IClassificationType> Classifications        = null;
+    internal static IClassificationTypeRegistryService Registry        = null;
+    internal static ImmutableList<IClassificationType> Classifications = null;
 
     public IClassifier GetClassifier(ITextBuffer buffer) {
       if (buffer is null) {
         throw new ArgumentNullException(nameof(buffer));
       }
 
-      if (ClassificationRegistry is null) {
-        ClassificationRegistry = classificationRegistry;
+      if (Registry is null) {
+        Registry = this.ClassificationRegistry;
 
         Classifications = new SortedDictionary<NodeType, IClassificationType> {
-          [NodeType.MPLCONTENT]   = ClassificationRegistry.GetClassificationType("MplContent"),
-          [NodeType.BUILTIN]      = ClassificationRegistry.GetClassificationType("MplBuiltin"),
-          [NodeType.COMMENT]      = ClassificationRegistry.GetClassificationType("MplComment"),
-          [NodeType.LABEL]        = ClassificationRegistry.GetClassificationType("MplLabel"),
-          [NodeType.CONSTANT]     = ClassificationRegistry.GetClassificationType("MplConstant"),
-          [NodeType.LIST]         = ClassificationRegistry.GetClassificationType("MplList"),
-          [NodeType.OBJECT]       = ClassificationRegistry.GetClassificationType("MplObject"),
-          [NodeType.TEXT]         = ClassificationRegistry.GetClassificationType("MplText"),
-          [NodeType.CODEBRACKETS] = ClassificationRegistry.GetClassificationType("MplCodeBrackets")
+          [NodeType.MPLCONTENT]   = Registry.GetClassificationType("MplContent"),
+          [NodeType.BUILTIN]      = Registry.GetClassificationType("MplBuiltin"),
+          [NodeType.LABEL]        = Registry.GetClassificationType("MplLabel"),
+          [NodeType.COMMENT]      = Registry.GetClassificationType("MplComment"),
+          [NodeType.CONSTANT]     = Registry.GetClassificationType("MplConstant"),
+          [NodeType.OBJECT]       = Registry.GetClassificationType("MplObject"),
+          [NodeType.LIST]         = Registry.GetClassificationType("MplList"),
+          [NodeType.TEXT]         = Registry.GetClassificationType("MplText"),
+          [NodeType.CODEBRACKETS] = Registry.GetClassificationType("MplCodeBrackets")
         }.Values.ToImmutableList();
       }
 

@@ -5,8 +5,6 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Tagging;
 using Microsoft.VisualStudio.Utilities;
 
-using MPLVS.Core;
-
 namespace MPLVS.Extensions.SyntaxErrorHightlighting {
   [Export(typeof(ITaggerProvider))]
   [ContentType(Constants.MPLContentType)]

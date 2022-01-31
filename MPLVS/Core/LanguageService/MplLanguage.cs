@@ -1,9 +1,15 @@
+using System.Linq;
 using System.Runtime.InteropServices;
 
 using Microsoft.VisualStudio;
+using Microsoft.VisualStudio.Editor;
 using Microsoft.VisualStudio.Package;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.TextManager.Interop;
+
+using MPLVS.Core.ParseTree;
+using MPLVS.ParseTree;
 
 namespace MPLVS {
   [Guid("5b6692e7-a860-4b7d-9242-a6781510dee0")]
@@ -11,15 +17,55 @@ namespace MPLVS {
     private LanguagePreferences preferences;
 
     public override int ValidateBreakpointLocation(IVsTextBuffer buffer, int line, int col, TextSpan[] pCodeSpan) {
-      if (pCodeSpan != null) {
-        pCodeSpan[0].iStartLine  = line;
-        pCodeSpan[0].iStartIndex = col;
-        pCodeSpan[0].iEndLine    = line;
-        pCodeSpan[0].iEndIndex   = col + 1;
-      }
+      if (pCodeSpan is null) { return VSConstants.S_OK; }
+
+      pCodeSpan[0].iStartLine  = line;
+      pCodeSpan[0].iStartIndex = col;
+      pCodeSpan[0].iEndLine    = line;
+      pCodeSpan[0].iEndIndex   = col + 1;
+
+      return AdjustBreakpoint(buffer, pCodeSpan);
+    }
+
+    private static int AdjustBreakpoint(IVsTextBuffer buffer, TextSpan[] pCodeSpan) {
+      var lines = BufferFromVsBuffer(buffer);
+
+      if (lines is null) { return VSConstants.S_OK; }
+
+      var line     = pCodeSpan[0].iStartLine;
+      var column   = pCodeSpan[0].iStartIndex;
+      var position = (lines.CurrentSnapshot.GetLineFromLineNumber(line).Start + column).Position;
+
+      var symbol =
+        lines.ObtainOrAttachTree().Root()
+             .Surroundings(position, Core.ParseTree.Strategy.FarLeftNearRight).AsSequence()
+             .LastOrDefault(a => a is object && !a.IsComment() && !a.IsEol() && !a.IsEof());
+
+      if (symbol is null) { return VSConstants.S_FALSE; }
+
+      var token =
+        symbol.Previous?.Previous is object && symbol.Previous.Previous.IsLabel()
+        ? symbol.Previous.Previous
+        : symbol;
+
+      pCodeSpan[0] = AsTextSpan(token, lines);
 
       return VSConstants.S_OK;
     }
+
+    public static TextSpan AsTextSpan(Builder.Node node, ITextBuffer buffer) {
+      var endLine = buffer.CurrentSnapshot.GetLineFromPosition(node.end);
+
+      return new TextSpan {
+        iStartLine  = node.line,
+        iStartIndex = node.column,
+        iEndLine    = endLine.LineNumber,
+        iEndIndex   = node.end - endLine.Start.Position
+      };
+    }
+
+    private static ITextBuffer BufferFromVsBuffer(IVsTextBuffer buffer) =>
+      MplPackage.Instance?.GetComponentModelService<IVsEditorAdaptersFactoryService>()?.GetDocumentBuffer(buffer);
 
     public override LanguagePreferences GetLanguagePreferences() {
       return

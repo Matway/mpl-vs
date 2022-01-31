@@ -7,8 +7,6 @@ using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.TextManager.Interop;
 using Microsoft.VisualStudio.Utilities;
 
-using MPLVS.Core;
-
 namespace MPLVS.Intellisense {
   [Export(typeof(IVsTextViewCreationListener))]
   [Name("token completion handler")]

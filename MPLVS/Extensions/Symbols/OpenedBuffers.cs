@@ -9,8 +9,6 @@ using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.TextManager.Interop;
 using Microsoft.VisualStudio.Utilities;
 
-using MPLVS.Core;
-
 namespace MPLVS.Symbols {
   internal static class OpenedBuffers {
     public static void VsTextViewCreated(IVsTextView textViewAdapter, IWpfTextView textView) {
@@ -45,6 +43,8 @@ namespace MPLVS.Symbols {
 
     public static Dictionary<IWpfTextView, IVsTextView> WpfToVs     = new Dictionary<IWpfTextView, IVsTextView>();
     public static Dictionary<IWpfTextView, ITextBuffer> WpfToBuffer = new Dictionary<IWpfTextView, ITextBuffer>();
+
+    public static IEnumerable<IWpfTextView> Views => WpfToBuffer.Keys;
 
     private static readonly Dictionary<ITextBuffer, int> Buffers = new Dictionary<ITextBuffer, int>();
     private static readonly PropertyCollection Collectors        = new PropertyCollection();

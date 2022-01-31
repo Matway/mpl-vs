@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.IsolatedStorage;
 using System.Linq;
 
 using Microsoft.VisualStudio;
@@ -10,7 +9,6 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.TextManager.Interop;
 
-using MPLVS.Core;
 using MPLVS.Core.ParseTree;
 using MPLVS.Extensions;
 using MPLVS.ParseTree;

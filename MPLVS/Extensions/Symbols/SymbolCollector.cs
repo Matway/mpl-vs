@@ -10,37 +10,37 @@ using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Text.Editor;
 
 using MPLVS.Classification;
-using MPLVS.Core;
 using MPLVS.Core.ParseTree;
 using MPLVS.Extensions;
+using MPLVS.ParseTree;
 
 namespace MPLVS.Symbols {
   internal class SymbolCollector {
-    private readonly IWpfTextView textView;
+    private readonly IWpfTextView View;
 
-    public Classifier classifier { get; }
+    public Classifier Classifier { get; }
 
-    private readonly IClassificationType label;
+    private readonly IClassificationType Label;
 
     public SymbolCollector(IWpfTextView textView) {
-      this.textView = textView ?? throw new ArgumentNullException(nameof(textView));
-      this.classifier = textView.TextBuffer.ObtainOrAttachTree().Classifier;
-      this.label = MplClassifierProvider.Classifications[(int)NodeType.LABEL];
+      this.Classifier = textView.TextBuffer.ObtainOrAttachTree().Classifier;
+      this.Label      = MplClassifierProvider.Classifications[(int)NodeType.LABEL];
+      this.View       = textView ?? throw new ArgumentNullException(nameof(textView));
     }
 
     public IEnumerable<ClassificationSpan> Symbols() {
-      var snapshot = textView.TextBuffer.CurrentSnapshot;
+      var snapshot      = View.TextBuffer.CurrentSnapshot;
       var wholeDocument = new SnapshotSpan(snapshot, Span.FromBounds(0, snapshot.Length));
 
       // FIXME: GC.
-      return this.classifier.GetClassificationSpans(wholeDocument).Where(a => a.ClassificationType.Equals(this.label));
+      return this.Classifier.GetClassificationSpans(wholeDocument).Where(a => a.ClassificationType.Equals(this.Label));
     }
   }
 
   internal struct OriginAndTree {
     public string File;
     public string Input;
-    public ParseTree.Builder.Node Root;
+    public Builder.Node Root;
 
     public static OriginAndTree FromTree(Tree tree) {
       ThreadHelper.ThrowIfNotOnUIThread();
@@ -52,7 +52,7 @@ namespace MPLVS.Symbols {
       };
     }
 
-    public static OriginAndTree FromNode(ParseTree.Builder.Node node, string input, string file) {
+    public static OriginAndTree FromNode(Builder.Node node, string input, string file) {
       return new OriginAndTree {
         File  = file,
         Input = input,
@@ -129,31 +129,14 @@ namespace MPLVS.Symbols {
       }
     }
 
-    public static IEnumerable<ParseTree.Builder.Node> Labels(ParseTree.Builder.Node node) =>
-      Flatten(node).Where(a => a.IsLabel());
+    public static IEnumerable<Builder.Node> Labels(Builder.Node node) =>
+      node.AsSequence().Where(NodeUtils.IsLabel);
 
-    public static IEnumerable<ParseTree.Builder.Node> Flatten(ParseTree.Builder.Node node) =>
-      Flatten(node, a => a);
-
-    // FIXME: GC.
-    public static IEnumerable<ParseTree.Builder.Node> Flatten(ParseTree.Builder.Node node, Func<ParseTree.Builder.Node, ParseTree.Builder.Node> selector) {
-      IEnumerable<ParseTree.Builder.Node> empty = Array.Empty<ParseTree.Builder.Node>();
-
-      if (node is null) { return empty; }
-
-      var payload = empty.Append(selector(node));
-
-      return
-        node.children is object
-        ? payload.Concat(node.children.Select(a => selector(a)).SelectMany(a => Flatten(a, selector)))
-        : payload;
-    }
-
-    public static string Text(ParseTree.Builder.Node node, string source) {
+    public static string Text(Builder.Node node, string source) {
       if (node is null)                 { throw new ArgumentNullException(nameof(node)); }
       if (string.IsNullOrEmpty(source)) { throw new ArgumentException($"'{nameof(source)}' cannot be null or empty.", nameof(source)); }
 
-      return source.Substring(node.begin, node.end - node.begin);
+      return source.Substring(node.begin, node.Length());
     }
   }
 }

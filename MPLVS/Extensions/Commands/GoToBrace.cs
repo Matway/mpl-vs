@@ -9,8 +9,6 @@ using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Tagging;
 using Microsoft.VisualStudio.TextManager.Interop;
 
-using MPLVS.Core;
-
 namespace MPLVS.Commands {
   internal class GoToBrace : VSStd2KCommand {
     public GoToBrace(IVsTextView vsTextView, IWpfTextView textView) : base(vsTextView, textView) =>
@@ -46,7 +44,7 @@ namespace MPLVS.Commands {
       caret.EnsureVisible();
     }
 
-    private List<ITagSpan<ITextMarkerTag>> Tags() {
+    private List<ITagSpan<Extensions.Tag>> Tags() {
       var wholeDocument  = new SnapshotSpan(TextView.TextSnapshot, 0, TextView.TextSnapshot.Length);
       var entireDocument = new NormalizedSnapshotSpanCollection(wholeDocument);
       return this.tagger.GetTags(entireDocument).ToList();

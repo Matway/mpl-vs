@@ -7,7 +7,7 @@ using Microsoft.VisualStudio.Utilities;
 using MPLVS.Classification;
 using MPLVS.ParseTree;
 
-namespace MPLVS.Core {
+namespace MPLVS {
   public static class Utils {
     /// <summary>Alias to <c>(T)owner.Properties.GetProperty(typeof(T))</c>.</summary>
     /// <remarks>Do not use it in a cycle due to performance issue.</remarks>
@@ -47,6 +47,7 @@ namespace MPLVS.Core {
     internal readonly ITextBuffer TextBuffer;
     internal readonly Builder builder = new Builder();
     private Builder.Node root;
+    private int Version = -1;
 
     private bool parsed;
 
@@ -56,20 +57,24 @@ namespace MPLVS.Core {
 
     internal Tree(ITextBuffer buffer) {
       this.TextBuffer = buffer ?? throw new System.ArgumentNullException(nameof(buffer));
-
-      this.TextBuffer.Changed += this.ReParse;
-
       this.Classifier = new Classifier(TextBuffer, builder.parser);
 
       ReParse(null, null);
     }
 
-    private void ReParse(object sender, TextContentChangedEventArgs info) {
-      var src = TextBuffer.CurrentSnapshot.GetText();
-      root    = builder.GetRoot(src, out parsed);
+    public void ReParse(object sender, TextContentChangedEventArgs info) {
+      if (!this.Outdated()) { return; }
+
+      this.root    = this.builder.GetRoot(this.TextBuffer.CurrentSnapshot.GetText(), out this.parsed);
+      this.Version = this.TextBuffer.CurrentSnapshot.Version.VersionNumber;
     }
 
-    public Builder.Node Root() => root;
+    public Builder.Node Root() {
+      if (this.Outdated()) { this.ReParse(null, null); }
+      return this.root;
+    }
+
+    internal bool Outdated() => this.Version != this.TextBuffer.CurrentSnapshot.Version.VersionNumber;
 
     public Stack<Parser.SyntaxError> GetErrors() => builder.errors;
   }
