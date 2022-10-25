@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemDefinitionGroup>
+    <LLVM>
+      <CompilerPath>clang</CompilerPath>
+      <OutputFile>$(IntDir)%(Filename).obj</OutputFile>
+      <AdditionalOptions Condition="$(Configuration)==debug">-g</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='assert|win32'">-O3 -Wno-override-module -c -target i386-pc-windows %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='assert|x64'">-O3 -Wno-override-module -c -target x86_64-pc-windows %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='debug|win32'">-O0 -Wno-override-module -c -target i386-pc-windows %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='debug|x64'">-O0 -Wno-override-module -c -target x86_64-pc-windows %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='release|win32'">-O3 -Wno-override-module -c -target i386-pc-windows %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='release|x64'">-O3 -Wno-override-module -c -target x86_64-pc-windows %(AdditionalOptions)</AdditionalOptions>
+      <MinimalRebuildFromTracking>true</MinimalRebuildFromTracking>
+    </LLVM>
+  </ItemDefinitionGroup>
+</Project>

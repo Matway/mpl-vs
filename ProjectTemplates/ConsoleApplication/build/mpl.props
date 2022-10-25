@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemDefinitionGroup>
+    <MPL>
+      <CompilerPath>mplc</CompilerPath>
+      <PointerSize Condition="$(Platform)==win32">32</PointerSize>
+      <PointerSize Condition="$(Platform)==x64">64</PointerSize>
+      <CallTrace>None</CallTrace>
+      <ShowMemoryUsage>false</ShowMemoryUsage>
+      <AdditionalDependencies Condition="$(Configuration)==assert">legacy_stdio_definitions.lib;libcmt.lib</AdditionalDependencies>
+      <AdditionalDependencies Condition="$(Configuration)==debug">legacy_stdio_definitions.lib;msvcrtd.lib</AdditionalDependencies>
+      <AdditionalDependencies Condition="$(Configuration)==release">legacy_stdio_definitions.lib;libcmt.lib</AdditionalDependencies>
+      <DisableDebugInfo Condition="$(Configuration)==assert">true</DisableDebugInfo>
+      <DisableDebugInfo Condition="$(Configuration)==debug">false</DisableDebugInfo>
+      <DisableDebugInfo Condition="$(Configuration)==release">true</DisableDebugInfo>
+      <Definitions Condition="$(Configuration)==assert">DEBUG=TRUE</Definitions>
+      <OutputFile>$(IntDir)mpl_%(Filename).ll</OutputFile>
+      <PartialCompilation>true</PartialCompilation>
+      <MinimalRebuildFromTracking>true</MinimalRebuildFromTracking>
+    </MPL>
+  </ItemDefinitionGroup>
+</Project>

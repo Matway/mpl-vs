@@ -1,0 +1,47 @@
+name: Check Templates
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    name: ${{matrix.template}} ${{matrix.configuration}} ${{matrix.platform}}
+
+    strategy:
+      matrix:
+        configuration: [assert, debug, release]
+        platform:      [x64, x86]
+        template:      [ConsoleApplication, EmptyProject]
+
+    runs-on: windows-latest
+
+    steps:
+    - name: set PATH=%PATH%;.
+      if: matrix.template != 'EmptyProject'
+      run: echo "$((Get-Item .).FullName)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: сheckout
+      uses: actions/checkout@main
+
+    - name: mplc
+      if: matrix.template != 'EmptyProject'
+      run: curl -LO https://github.com/Matway/mpl-c/releases/latest/download/mplc.exe
+
+    - name: sl
+      if: matrix.template != 'EmptyProject'
+      shell: cmd # FIXME: Replace cmd by powershell.
+      run: |
+        git clone --depth 1 --single-branch https://github.com/Matway/mpl-sl.git sl
+        mklink /J "ProjectTemplates/${{matrix.template}}/sl" sl
+
+    - name: msbuild
+      uses: microsoft/setup-msbuild@master
+
+    - name: check templates
+      run: msbuild /bl:ProjectTemplates/${{matrix.template}}.${{matrix.configuration}}.${{matrix.platform}}.binlog /m /p:configuration=${{matrix.configuration}} /p:platform=${{matrix.platform}} /v:m ProjectTemplates/${{matrix.template}}/${{matrix.template}}.vcxproj
+
+    - name: logs
+      if: always()
+      uses: actions/upload-artifact@main
+      with:
+        name: MPLVS.Templates.Logs
+        path: ProjectTemplates/*.binlog

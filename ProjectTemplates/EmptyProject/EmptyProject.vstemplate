@@ -1,0 +1,33 @@
+﻿<VSTemplate Version="3.0.0" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005" Type="Project">
+  <TemplateData>
+    <CreateInPlace>true</CreateInPlace>
+    <CreateNewFolder>false</CreateNewFolder>
+    <DefaultName>Project</DefaultName>
+    <Description>Start from scratch with mpl for windows. Provides no starting files.</Description>
+    <EnableLocationBrowseButton>true</EnableLocationBrowseButton>
+    <Icon>EmptyProject.ico</Icon>
+    <LanguageTag>MPL</LanguageTag>
+    <LanguageTag>CPP</LanguageTag>
+    <LanguageTag>LLVM-IR</LanguageTag>
+    <LocationField>Enabled</LocationField>
+    <Name>Empty Project</Name>
+    <PlatformTag>windows</PlatformTag>
+    <ProjectType>VC</ProjectType>
+    <ProjectTypeTag>console</ProjectTypeTag>
+    <ProvideDefaultName>true</ProvideDefaultName>
+    <SortOrder>-2147483647</SortOrder>
+  </TemplateData>
+  <TemplateContent>
+    <Project File="EmptyProject.vcxproj">
+      <ProjectItem TargetFileName="$safeprojectname$.vcxproj.filters">EmptyProject.vcxproj.filters</ProjectItem>
+      <ProjectItem>build/llvm.cs</ProjectItem>
+      <ProjectItem>build/llvm.props</ProjectItem>
+      <ProjectItem>build/llvm.targets</ProjectItem>
+      <ProjectItem>build/llvm.xml</ProjectItem>
+      <ProjectItem>build/mpl.cs</ProjectItem>
+      <ProjectItem>build/mpl.props</ProjectItem>
+      <ProjectItem>build/mpl.targets</ProjectItem>
+      <ProjectItem>build/mpl.xml</ProjectItem>
+    </Project>
+  </TemplateContent>
+</VSTemplate>
