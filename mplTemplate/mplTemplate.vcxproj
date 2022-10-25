@@ -159,8 +159,6 @@
     <MPL>
       <AdditionalOptions>-hide_prefix sl/</AdditionalOptions>
       <IncludeFolders>sl</IncludeFolders>
-      <AdditionalDependencies>legacy_stdio_definitions.lib;msvcrtd.lib</AdditionalDependencies>
-      <DisableDebugInfo>false</DisableDebugInfo>
     </MPL>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -219,8 +217,6 @@
     <MPL>
       <AdditionalOptions>-hide_prefix sl/</AdditionalOptions>
       <IncludeFolders>sl</IncludeFolders>
-      <AdditionalDependencies>legacy_stdio_definitions.lib;msvcrtd.lib</AdditionalDependencies>
-      <DisableDebugInfo>false</DisableDebugInfo>
     </MPL>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">

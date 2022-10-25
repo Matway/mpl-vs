@@ -152,10 +152,6 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
     </Link>
-    <MPL>
-      <AdditionalDependencies>legacy_stdio_definitions.lib;msvcrtd.lib</AdditionalDependencies>
-      <DisableDebugInfo>false</DisableDebugInfo>
-    </MPL>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -202,10 +198,6 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
     </Link>
-    <MPL>
-      <AdditionalDependencies>legacy_stdio_definitions.lib;msvcrtd.lib</AdditionalDependencies>
-      <DisableDebugInfo>false</DisableDebugInfo>
-    </MPL>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
