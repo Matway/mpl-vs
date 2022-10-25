@@ -1,0 +1,32 @@
+﻿<VSTemplate Version="3.0.0" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005" Type="Project">
+	<TemplateData>
+		<Name>MPL Empty Project</Name>
+		<Description>An empty MPL project</Description>
+		<ProjectType>VC</ProjectType>
+		<SortOrder>1000</SortOrder>
+		<CreateNewFolder>false</CreateNewFolder>
+		<CreateInPlace>true</CreateInPlace>
+		<DefaultName>mplEmptyProject</DefaultName>
+		<ProvideDefaultName>true</ProvideDefaultName>
+		<LocationField>Enabled</LocationField>
+		<EnableLocationBrowseButton>true</EnableLocationBrowseButton>
+		<Icon>mplTemplateEmpty.ico</Icon>
+	</TemplateData>
+	<TemplateContent>
+		<Project File="mplTemplateEmpty.vcxproj">
+			<ProjectItem>.editorconfig</ProjectItem>
+			<ProjectItem>README.md</ProjectItem>
+			<ProjectItem>llvm.cs</ProjectItem>
+			<ProjectItem>llvm.props</ProjectItem>
+			<ProjectItem>llvm.targets</ProjectItem>
+			<ProjectItem>llvm.xml</ProjectItem>
+			<ProjectItem OpenInEditor="true">main.mpl</ProjectItem>
+			<ProjectItem>mpl.cs</ProjectItem>
+			<ProjectItem>mpl.props</ProjectItem>
+			<ProjectItem>mpl.sl.natvis</ProjectItem>
+			<ProjectItem>mpl.targets</ProjectItem>
+			<ProjectItem>mpl.xml</ProjectItem>
+			<ProjectItem TargetFileName="$safeprojectname$.vcxproj.filters">mplTemplateEmpty.vcxproj.filters</ProjectItem>
+		</Project>
+	</TemplateContent>
+</VSTemplate>
