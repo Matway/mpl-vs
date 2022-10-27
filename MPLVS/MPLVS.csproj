@@ -168,16 +168,14 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\mplTemplateEmpty\mplTemplateEmpty.csproj">
-      <Project>{0D95DDEC-AAE3-48A7-BB96-CC6A72243311}</Project>
-      <Name>mplTemplateEmpty</Name>
+    <ProjectReference Include="..\ProjectTemplates\EmptyProject\EmptyProject.csproj">
+      <Name>EmptyProject</Name>
       <VSIXSubPath>ProjectTemplates</VSIXSubPath>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <IncludeOutputGroupsInVSIX>TemplateProjectOutputGroup%3b</IncludeOutputGroupsInVSIX>
     </ProjectReference>
-    <ProjectReference Include="..\mplTemplate\mplTemplate.csproj">
-      <Project>{8B682B23-B527-40C4-B44F-58C560C90764}</Project>
-      <Name>mplTemplate</Name>
+    <ProjectReference Include="..\ProjectTemplates\ConsoleApplication\ConsoleApplication.csproj">
+      <Name>ConsoleApplication</Name>
       <VSIXSubPath>ProjectTemplates</VSIXSubPath>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <IncludeOutputGroupsInVSIX>TemplateProjectOutputGroup%3b</IncludeOutputGroupsInVSIX>

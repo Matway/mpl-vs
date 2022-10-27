@@ -70,8 +70,8 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
-    <Import Project="llvm.props" />
-    <Import Project="mpl.props" />
+    <Import Project="build\llvm.props" />
+    <Import Project="build\mpl.props" />
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
@@ -135,6 +135,10 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <MPL>
+      <AdditionalOptions>-hide_prefix sl/</AdditionalOptions>
+      <IncludeFolders>sl</IncludeFolders>
+    </MPL>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Assert|Win32'">
     <ClCompile>
@@ -152,6 +156,10 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
     </Link>
+    <MPL>
+      <AdditionalOptions>-hide_prefix sl/</AdditionalOptions>
+      <IncludeFolders>sl</IncludeFolders>
+    </MPL>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -169,6 +177,10 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <MPL>
+      <AdditionalOptions>-hide_prefix sl/</AdditionalOptions>
+      <IncludeFolders>sl</IncludeFolders>
+    </MPL>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -181,6 +193,10 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <MPL>
+      <AdditionalOptions>-hide_prefix sl/</AdditionalOptions>
+      <IncludeFolders>sl</IncludeFolders>
+    </MPL>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Assert|x64'">
     <ClCompile>
@@ -198,6 +214,10 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
     </Link>
+    <MPL>
+      <AdditionalOptions>-hide_prefix sl/</AdditionalOptions>
+      <IncludeFolders>sl</IncludeFolders>
+    </MPL>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -215,8 +235,18 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <MPL>
+      <AdditionalOptions>-hide_prefix sl/</AdditionalOptions>
+      <IncludeFolders>sl</IncludeFolders>
+    </MPL>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <MPL Include="sl\Array.mpl" />
+    <MPL Include="sl\String.mpl" />
+    <MPL Include="sl\algorithm.mpl" />
+    <MPL Include="sl\control.mpl" />
+    <MPL Include="sl\conventions.mpl" />
+    <MPL Include="sl\memory.mpl" />
     <MPL Include="main.mpl" />
   </ItemGroup>
   <ItemGroup>
@@ -224,7 +254,7 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="llvm.targets" />
-    <Import Project="mpl.targets" />
+    <Import Project="build\llvm.targets" />
+    <Import Project="build\mpl.targets" />
   </ImportGroup>
 </Project>
