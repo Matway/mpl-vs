@@ -1,0 +1,35 @@
+name: Build Extension
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
+
+    runs-on: windows-latest
+
+    steps:
+    - name: сheckout
+      uses: actions/checkout@main
+
+    - name: msbuild
+      uses: microsoft/setup-msbuild@master
+
+    - name: msbuild /t:restore;build
+      run: msbuild mplvs /bl:MPLVS/bin/${{matrix.configuration}}.binlog /m /p:configuration=${{matrix.configuration}} /p:platform="AnyCPU" /t:"Restore;Build" /v:m
+
+    - name: artifacts
+      if: always()
+      uses: actions/upload-artifact@main
+      with:
+        name: MPLVS.${{matrix.configuration}}
+        path: MPLVS/bin/**/*.vsix
+
+    - name: logs
+      if: always()
+      uses: actions/upload-artifact@main
+      with:
+        name: MPLVS.Logs
+        path: MPLVS/bin/**/*.binlog
