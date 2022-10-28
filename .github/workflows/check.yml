@@ -16,17 +16,19 @@ jobs:
 
     steps:
     - name: set PATH=%PATH%;.
+      if: matrix.template != 'EmptyProject'
       run: echo "$((Get-Item .).FullName)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
     - name: сheckout
       uses: actions/checkout@main
 
     - name: mplc
+      if: matrix.template != 'EmptyProject'
       run: curl -LO https://github.com/Matway/mpl-c/releases/latest/download/mplc.exe
 
     - name: sl
+      if: matrix.template != 'EmptyProject'
       shell: cmd # FIXME: Replace cmd by powershell.
-      # FIXME: Don't put sl to projects that don't require it.
       run: |
         git clone --depth 1 --single-branch https://github.com/Matway/mpl-sl.git sl
         mklink /J "ProjectTemplates/${{matrix.template}}/sl" sl
