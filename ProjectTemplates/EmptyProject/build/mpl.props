@@ -3,8 +3,8 @@
   <ItemDefinitionGroup>
     <MPL>
       <CompilerPath>mplc</CompilerPath>
-      <PointerSize Condition="$(Platform)==Win32">32</PointerSize>
       <PointerSize Condition="$(Platform)==x64">64</PointerSize>
+      <PointerSize Condition="$(Platform)==x86">32</PointerSize>
       <CallTrace>None</CallTrace>
       <ShowMemoryUsage>false</ShowMemoryUsage>
       <AdditionalDependencies Condition="$(Configuration)==assert">legacy_stdio_definitions.lib;libcmt.lib</AdditionalDependencies>
@@ -13,7 +13,7 @@
       <DisableDebugInfo Condition="$(Configuration)==assert">true</DisableDebugInfo>
       <DisableDebugInfo Condition="$(Configuration)==debug">false</DisableDebugInfo>
       <DisableDebugInfo Condition="$(Configuration)==release">true</DisableDebugInfo>
-	  <Definitions Condition="$(Configuration)==assert">DEBUG=TRUE;%(Definitions)</Definitions>
+      <Definitions Condition="$(Configuration)==assert">DEBUG=TRUE</Definitions>
       <OutputFile>$(IntDir)mpl_%(Filename).ll</OutputFile>
       <PartialCompilation>true</PartialCompilation>
       <MinimalRebuildFromTracking>true</MinimalRebuildFromTracking>
