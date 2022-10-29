@@ -3,7 +3,7 @@
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="assert|x86">
       <Configuration>assert</Configuration>
-      <Platform>x86</Platform>
+      <Platform>Win32</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="assert|x64">
       <Configuration>assert</Configuration>
@@ -11,11 +11,11 @@
     </ProjectConfiguration>
     <ProjectConfiguration Include="debug|x86">
       <Configuration>debug</Configuration>
-      <Platform>x86</Platform>
+      <Platform>Win32</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="release|x86">
       <Configuration>release</Configuration>
-      <Platform>x86</Platform>
+      <Platform>Win32</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="debug|x64">
       <Configuration>debug</Configuration>
