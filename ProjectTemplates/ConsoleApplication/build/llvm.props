@@ -4,12 +4,12 @@
     <LLVM>
       <CompilerPath>clang</CompilerPath>
       <OutputFile>$(IntDir)%(Filename).obj</OutputFile>
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Assert|Win32'">-O3 -Wno-override-module -c -target i386-pc-windows $(AdditionalOptions)</AdditionalOptions>
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Assert|x64'">-O3 -Wno-override-module -c -target x86_64-pc-windows $(AdditionalOptions)</AdditionalOptions>
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">-O0 -Wno-override-module -c -target i386-pc-windows $(AdditionalOptions)</AdditionalOptions>
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">-O0 -Wno-override-module -c -target x86_64-pc-windows $(AdditionalOptions)</AdditionalOptions>
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">-O3 -Wno-override-module -c -target i386-pc-windows $(AdditionalOptions)</AdditionalOptions>
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">-O3 -Wno-override-module -c -target x86_64-pc-windows $(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='assert|Win32'">-O3 -Wno-override-module -c -target i386-pc-windows $(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='assert|x64'">-O3 -Wno-override-module -c -target x86_64-pc-windows $(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='debug|Win32'">-O0 -Wno-override-module -c -target i386-pc-windows $(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='debug|x64'">-O0 -Wno-override-module -c -target x86_64-pc-windows $(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='release|Win32'">-O3 -Wno-override-module -c -target i386-pc-windows $(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='release|x64'">-O3 -Wno-override-module -c -target x86_64-pc-windows $(AdditionalOptions)</AdditionalOptions>
       <MinimalRebuildFromTracking>true</MinimalRebuildFromTracking>
     </LLVM>
   </ItemDefinitionGroup>

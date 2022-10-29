@@ -7,12 +7,13 @@
       <PointerSize Condition="$(Platform)==x64">64</PointerSize>
       <CallTrace>None</CallTrace>
       <ShowMemoryUsage>false</ShowMemoryUsage>
-      <AdditionalDependencies Condition="$(Configuration)==Assert">legacy_stdio_definitions.lib;libcmt.lib</AdditionalDependencies>
-      <AdditionalDependencies Condition="$(Configuration)==Debug">legacy_stdio_definitions.lib;msvcrtd.lib</AdditionalDependencies>
-      <AdditionalDependencies Condition="$(Configuration)==Release">legacy_stdio_definitions.lib;libcmt.lib</AdditionalDependencies>
-      <DisableDebugInfo Condition="$(Configuration)==Assert">false</DisableDebugInfo>
-      <DisableDebugInfo Condition="$(Configuration)==Debug">false</DisableDebugInfo>
-      <DisableDebugInfo Condition="$(Configuration)==Release">true</DisableDebugInfo>
+      <AdditionalDependencies Condition="$(Configuration)==assert">legacy_stdio_definitions.lib;libcmt.lib</AdditionalDependencies>
+      <AdditionalDependencies Condition="$(Configuration)==debug">legacy_stdio_definitions.lib;msvcrtd.lib</AdditionalDependencies>
+      <AdditionalDependencies Condition="$(Configuration)==release">legacy_stdio_definitions.lib;libcmt.lib</AdditionalDependencies>
+      <DisableDebugInfo Condition="$(Configuration)==assert">true</DisableDebugInfo>
+      <DisableDebugInfo Condition="$(Configuration)==debug">false</DisableDebugInfo>
+      <DisableDebugInfo Condition="$(Configuration)==release">true</DisableDebugInfo>
+	  <Definitions Condition="$(Configuration)==assert">DEBUG=TRUE;%(Definitions)</Definitions>
       <OutputFile>$(IntDir)mpl_%(Filename).ll</OutputFile>
       <PartialCompilation>true</PartialCompilation>
       <MinimalRebuildFromTracking>true</MinimalRebuildFromTracking>
