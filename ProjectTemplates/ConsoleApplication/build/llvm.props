@@ -4,7 +4,7 @@
     <LLVM>
       <CompilerPath>clang</CompilerPath>
       <OutputFile>$(IntDir)%(Filename).obj</OutputFile>
-      <AdditionalOptions Condition="$(Configuration)==debug">-g</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)'=='debug'">-g</AdditionalOptions>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='assert|win32'">-O3 -Wno-override-module -c -target i386-pc-windows $(AdditionalOptions)</AdditionalOptions>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='assert|x64'">-O3 -Wno-override-module -c -target x86_64-pc-windows $(AdditionalOptions)</AdditionalOptions>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='debug|win32'">-O0 -Wno-override-module -c -target i386-pc-windows $(AdditionalOptions)</AdditionalOptions>
