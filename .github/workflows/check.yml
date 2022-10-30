@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         configuration: [assert, debug, release]
-        platform:      [x64, win32]
+        platform:      [x64, x86]
         template:      [ConsoleApplication, EmptyProject]
 
     runs-on: windows-latest
