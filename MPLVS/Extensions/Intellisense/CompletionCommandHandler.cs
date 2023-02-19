@@ -46,7 +46,7 @@ namespace MPLVS.Intellisense {
         return _nextCommandHandler.Exec(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut);
       }
 
-      if (_textView.IsCaretInStringOrComment()) {
+      if (_textView.IsCaretInStringOrComment() || MplPackage.Options.AutocompletionOff) {
         this.Cancel();
         return _nextCommandHandler.Exec(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut);
       }

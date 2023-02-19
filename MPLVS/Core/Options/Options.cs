@@ -13,6 +13,12 @@ namespace MPLVS {
     public LineEnding LineEndings { get; set; } = LineEnding.Unix;
 
     [Category("Code completion")]
+    [DisplayName("Disable auto-completion")]
+    [Description("...")]
+    [DefaultValue(false)]
+    public bool AutocompletionOff { get; set; } = false;
+
+    [Category("Code completion")]
     [DisplayName("Project-wide symbol search")]
     [Description("Search symbols for auto-completion not only in current file, but in other project files too.\nCurrent state of this feature is prototype, and if it is enabled, then code editing may be slowdown drastically.")]
     [DefaultValue(false)]
