@@ -243,6 +243,7 @@
   <ItemGroup>
     <MPL Include="main.mpl" />
     <MPL Include="sl\Array.mpl" />
+    <MPL Include="sl\Span.mpl" />
     <MPL Include="sl\String.mpl" />
     <MPL Include="sl\algorithm.mpl" />
     <MPL Include="sl\control.mpl" />

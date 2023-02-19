@@ -34,7 +34,7 @@ jobs:
         mklink /J "ProjectTemplates/${{matrix.template}}/sl" sl
 
     - name: msbuild
-      uses: microsoft/setup-msbuild@master
+      uses: microsoft/setup-msbuild@main
 
     - name: check templates
       run: msbuild /bl:ProjectTemplates/${{matrix.template}}.${{matrix.configuration}}.${{matrix.platform}}.binlog /m /p:configuration=${{matrix.configuration}} /p:platform=${{matrix.platform}} /v:m ProjectTemplates/${{matrix.template}}/${{matrix.template}}.vcxproj

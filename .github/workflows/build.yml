@@ -15,7 +15,7 @@ jobs:
       uses: actions/checkout@main
 
     - name: msbuild
-      uses: microsoft/setup-msbuild@master
+      uses: microsoft/setup-msbuild@main
 
     - name: msbuild /t:restore;build
       run: msbuild mplvs /bl:MPLVS/bin/${{matrix.configuration}}.binlog /m /p:configuration=${{matrix.configuration}} /p:platform="AnyCPU" /t:"Restore;Build" /v:m
