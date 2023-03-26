@@ -121,7 +121,6 @@ namespace MPLVS.Classification {
           break;
 
         case "'.'":
-        case "','":
           Add(terminalInfo.Begin, terminalInfo.End, NodeType.MPLCONTENT);
           break;
 

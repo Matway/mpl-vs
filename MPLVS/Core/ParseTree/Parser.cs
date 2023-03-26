@@ -242,7 +242,7 @@ namespace MPLVS {
     private void ParseExpression() {
       StartCompound?.Invoke(this, new CompoundStart("Expression", Pos.Cursor, Pos.Line, Pos.Column));
 
-      if (CurIsAnyOf("#(,.[{")) {
+      if (CurIsAnyOf("#(.[{")) {
         ParseNonWSSeparableExpression();
       }
       else {
@@ -301,8 +301,6 @@ namespace MPLVS {
 
         case '.': ParseMemberNameExpression(); break;
         case '#': ParseComment();              break;
-
-        case ',': Terminal?.Invoke(this, new TerminalStart("','", Pos.Cursor, ++Pos.Cursor, Pos.Line, Pos.Column - 1)); break; // TODO: Get rid of this.
 
         default:
           Error("NonWSSeparableExpression", "There is nothing that NonWSSeparableExpression can contain");
@@ -709,7 +707,7 @@ namespace MPLVS {
 
     private static bool IsHexDigit(char ch) => IsUpperCaseHexDigit(ch) || ch >= 'a' && ch <= 'f';
 
-    public static bool IsMplLetter(char ch) => !IsDigit(ch) && "\t\n\r !\"#()+,-.:;@[]{}".IndexOf(ch) < 0;
+    public static bool IsMplLetter(char ch) => !IsDigit(ch) && "\t\n\r !\"#()+-.:;@[]{}".IndexOf(ch) < 0;
 
     public static bool IsDigit(char ch) => ch >= '0' && ch <= '9';
 

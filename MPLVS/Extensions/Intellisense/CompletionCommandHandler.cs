@@ -162,7 +162,7 @@ namespace MPLVS.Intellisense {
     }
 
     private static bool NotLetter(char ch) =>
-      !(ch != '.' && ch != ';' && ch != ':' && ch != ',' && ch != '!' && ch != '@' && ch != '{' && ch != '}' && ch != '(' && ch != ')' && ch != 0x002D && ch != 0x0022 && ch != 0x0023 && ch != 0x005B && ch != 0x005D && ch != 0x0009 && ch != 0x000A && ch != 0x000D);
+      !(ch != '.' && ch != ';' && ch != ':' && ch != '!' && ch != '@' && ch != '{' && ch != '}' && ch != '(' && ch != ')' && ch != 0x002D && ch != 0x0022 && ch != 0x0023 && ch != 0x005B && ch != 0x005D && ch != 0x0009 && ch != 0x000A && ch != 0x000D);
 
     private void OnSessionDismissed(object sender, EventArgs data) {
       _currentSession.Dismissed -= OnSessionDismissed;
